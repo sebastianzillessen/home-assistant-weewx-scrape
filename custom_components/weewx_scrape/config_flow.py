@@ -88,7 +88,7 @@ class WeewxScrapeConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_URL, default=EXAMPLE_URL): str,
                 vol.Required(
                     CONF_SCAN_INTERVAL_MINUTES, default=DEFAULT_SCAN_INTERVAL
-                ): vol.In(SCAN_INTERVAL_OPTIONS),
+                ): vol.All(vol.Coerce(int), vol.In(SCAN_INTERVAL_OPTIONS)),
                 vol.Required(
                     CONF_TIMEZONE, default=self.hass.config.time_zone
                 ): str,
@@ -134,7 +134,7 @@ class WeewxScrapeOptionsFlow(OptionsFlow):
             {
                 vol.Required(
                     CONF_SCAN_INTERVAL_MINUTES, default=current_interval
-                ): vol.In(SCAN_INTERVAL_OPTIONS),
+                ): vol.All(vol.Coerce(int), vol.In(SCAN_INTERVAL_OPTIONS)),
                 vol.Required(CONF_TIMEZONE, default=current_tz): str,
             }
         )
