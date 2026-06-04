@@ -1,0 +1,114 @@
+# WeeWX Seasons (scrape) — example Lovelace dashboard
+#
+# A ready-to-use dashboard view for a station configured with this integration.
+# It uses only Home Assistant's built-in cards, so there is nothing extra to
+# install.
+#
+# How to use:
+#   1. In Home Assistant, open the dashboard you want to edit.
+#   2. Top-right menu → "Edit dashboard" → top-right menu → "Raw configuration
+#      editor".
+#   3. Paste this view under the `views:` list (or replace the whole file).
+#   4. Replace every `pany` in the entity IDs below with your station's slug.
+#      The slug is the device name you chose during setup, lower-cased with
+#      spaces turned into underscores (e.g. a station named "Pany" →
+#      `sensor.pany_outdoor_temperature`). Check the exact IDs under
+#      Settings → Devices & Services → WeeWX Seasons (scrape) → the device.
+#
+# Replace this single line everywhere if you keep your station name handy:
+#   sensor.pany_  →  sensor.<your_station>_
+
+views:
+  - title: Weather
+    path: weewx
+    icon: mdi:weather-partly-cloudy
+    cards:
+      # --- Current conditions at a glance ---------------------------------
+      - type: glance
+        title: Current conditions
+        show_name: true
+        show_state: true
+        columns: 3
+        entities:
+          - entity: sensor.pany_outdoor_temperature
+            name: Temperature
+          - entity: sensor.pany_humidity
+            name: Humidity
+          - entity: sensor.pany_pressure
+            name: Pressure
+          - entity: sensor.pany_wind_speed
+            name: Wind
+          - entity: sensor.pany_rain_today
+            name: Rain today
+          - entity: sensor.pany_station_reading_time
+            name: Data as of
+
+      # --- Gauges ---------------------------------------------------------
+      - type: horizontal-stack
+        cards:
+          - type: gauge
+            entity: sensor.pany_outdoor_temperature
+            name: Temperature
+            unit: °C
+            min: -20
+            max: 40
+            needle: true
+            severity:
+              green: 5
+              yellow: 25
+              red: 32
+          - type: gauge
+            entity: sensor.pany_humidity
+            name: Humidity
+            unit: "%"
+            min: 0
+            max: 100
+            needle: true
+            severity:
+              red: 0
+              yellow: 30
+              green: 40
+
+      # --- Details (with attributes) --------------------------------------
+      - type: entities
+        title: Details
+        state_color: true
+        entities:
+          - entity: sensor.pany_pressure
+            name: Pressure
+            secondary_info: last-updated
+          - type: attribute
+            entity: sensor.pany_pressure
+            attribute: trend
+            name: Pressure trend
+          - entity: sensor.pany_wind_speed
+            name: Wind speed
+          - type: attribute
+            entity: sensor.pany_wind_speed
+            attribute: direction
+            name: Wind direction
+          - entity: sensor.pany_rain_today
+            name: Rain today
+          - entity: sensor.pany_station_reading_time
+            name: Station reading time
+
+      # --- History --------------------------------------------------------
+      - type: history-graph
+        title: Last 24 hours
+        hours_to_show: 24
+        entities:
+          - entity: sensor.pany_outdoor_temperature
+            name: Temperature
+          - entity: sensor.pany_humidity
+            name: Humidity
+          - entity: sensor.pany_pressure
+            name: Pressure
+
+      - type: history-graph
+        title: Wind & rain (24 h)
+        hours_to_show: 24
+        entities:
+          - entity: sensor.pany_wind_speed
+            name: Wind speed
+          - entity: sensor.pany_rain_today
+            name: Rain today

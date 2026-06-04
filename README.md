@@ -72,6 +72,22 @@ This integration is configured entirely through the UI — no YAML required.
 The interval and time zone can be changed later via the integration's
 **Configure** button.
 
+## Dashboard
+
+A ready-made Lovelace dashboard is included in
+[`dashboard.yaml`](dashboard.yaml). It uses only Home Assistant's built-in
+cards (glance, gauges, an entities card that surfaces the `direction` and
+`trend` attributes, and history graphs), so there is nothing extra to install.
+
+To use it, open your dashboard's **Raw configuration editor** (top-right menu →
+*Edit dashboard* → top-right menu → *Raw configuration editor*), paste the view
+from `dashboard.yaml`, then replace every `sensor.pany_…` entity ID with your
+own station's slug. The slug is the device name you chose during setup,
+lower-cased with spaces replaced by underscores (e.g. a station named `Pany`
+becomes `sensor.pany_outdoor_temperature`). The exact entity IDs are listed
+under **Settings → Devices & Services → WeeWX Seasons (scrape)** on the device
+page.
+
 ## How it works
 
 On each update the integration fetches the station's `index.html`, isolates the
