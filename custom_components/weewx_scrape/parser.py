@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import html
 import re
+from datetime import datetime
 from urllib.parse import urlparse, urlunparse
 
 # Measurement key -> labels that may appear in the "label" cell (lower-cased,
@@ -52,6 +53,11 @@ _TAG_RE = re.compile(r"<[^>]+>")
 _NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?")
 _WIND_DIR_RE = re.compile(r"m/s\s+([^\s(]+)", re.IGNORECASE)
 _TREND_RE = re.compile(r"\(\s*([-+]?\d+(?:\.\d+)?)\s*\)")
+# A "DD/MM/YY HH:MM[:SS]" stamp inside the lastupdate text. Separator may be
+# "/" or "."; year may be 2- or 4-digit; seconds optional.
+_STATION_DT_RE = re.compile(
+    r"(\d{1,2})[/.](\d{1,2})[/.](\d{2,4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?"
+)
 
 
 class WeewxParseError(Exception):
@@ -93,6 +99,37 @@ def _wind_direction(text: str) -> str | None:
 def _pressure_trend(text: str) -> float | None:
     match = _TREND_RE.search(text)
     return float(match.group(1)) if match else None
+
+
+def parse_station_datetime(raw: str | None) -> datetime | None:
+    """Extract the station's reading time as a *naive* ``datetime``.
+
+    The Seasons skin prints the timestamp without a timezone, so the result is
+    naive — the caller attaches the configured timezone. Day/month order is
+    ambiguous in the skin: a component > 12 disambiguates it, otherwise
+    ``DD/MM`` is assumed (the common Seasons locale). Returns ``None`` if no
+    timestamp is found.
+    """
+    if not raw:
+        return None
+    match = _STATION_DT_RE.search(raw)
+    if not match:
+        return None
+    first, second, year, hour, minute, sec = match.groups()
+    first, second = int(first), int(second)
+    if first > 12:
+        day, month = first, second
+    elif second > 12:
+        day, month = second, first
+    else:
+        day, month = first, second  # ambiguous -> DD/MM
+    year = int(year)
+    if year < 100:
+        year += 2000
+    try:
+        return datetime(year, month, day, int(hour), int(minute), int(sec or 0))
+    except ValueError:
+        return None
 
 
 def parse_current_conditions(page: str) -> dict:

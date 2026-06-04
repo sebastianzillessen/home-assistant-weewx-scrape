@@ -23,6 +23,9 @@ DOMAIN = "weewx_scrape"
 
 # Config keys (CONF_NAME / CONF_URL come from homeassistant.const).
 CONF_SCAN_INTERVAL_MINUTES = "scan_interval"
+# IANA timezone applied to the station's (tz-naive) reading time. Defaults to
+# Home Assistant's own configured timezone.
+CONF_TIMEZONE = "timezone"
 
 DEFAULT_NAME = "WeeWX Weather"
 EXAMPLE_URL = "https://pany.gr/"

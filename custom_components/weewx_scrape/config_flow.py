@@ -17,9 +17,11 @@ from homeassistant.config_entries import (
 from homeassistant.const import CONF_NAME, CONF_URL
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_SCAN_INTERVAL_MINUTES,
+    CONF_TIMEZONE,
     DEFAULT_NAME,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
@@ -55,23 +57,27 @@ class WeewxScrapeConfigFlow(ConfigFlow, domain=DOMAIN):
             url = normalize_url(user_input[CONF_URL])
             await self.async_set_unique_id(url)
             self._abort_if_unique_id_configured()
-            try:
-                await _validate_url(self.hass, url)
-            except (aiohttp.ClientError, TimeoutError, WeewxParseError) as err:
-                _LOGGER.debug("Validation failed for %s: %s", url, err)
-                errors["base"] = "cannot_connect"
+            if await dt_util.async_get_time_zone(user_input[CONF_TIMEZONE]) is None:
+                errors["base"] = "invalid_timezone"
             else:
-                name = user_input.get(CONF_NAME) or DEFAULT_NAME
-                return self.async_create_entry(
-                    title=name,
-                    data={
-                        CONF_NAME: name,
-                        CONF_URL: url,
-                        CONF_SCAN_INTERVAL_MINUTES: user_input[
-                            CONF_SCAN_INTERVAL_MINUTES
-                        ],
-                    },
-                )
+                try:
+                    await _validate_url(self.hass, url)
+                except (aiohttp.ClientError, TimeoutError, WeewxParseError) as err:
+                    _LOGGER.debug("Validation failed for %s: %s", url, err)
+                    errors["base"] = "cannot_connect"
+                else:
+                    name = user_input.get(CONF_NAME) or DEFAULT_NAME
+                    return self.async_create_entry(
+                        title=name,
+                        data={
+                            CONF_NAME: name,
+                            CONF_URL: url,
+                            CONF_SCAN_INTERVAL_MINUTES: user_input[
+                                CONF_SCAN_INTERVAL_MINUTES
+                            ],
+                            CONF_TIMEZONE: user_input[CONF_TIMEZONE],
+                        },
+                    )
 
         schema = vol.Schema(
             {
@@ -80,6 +86,9 @@ class WeewxScrapeConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Required(
                     CONF_SCAN_INTERVAL_MINUTES, default=DEFAULT_SCAN_INTERVAL
                 ): vol.In(SCAN_INTERVAL_OPTIONS),
+                vol.Required(
+                    CONF_TIMEZONE, default=self.hass.config.time_zone
+                ): str,
             }
         )
         return self.async_show_form(
@@ -101,18 +110,31 @@ class WeewxScrapeOptionsFlow(OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            if await dt_util.async_get_time_zone(user_input[CONF_TIMEZONE]) is None:
+                errors["base"] = "invalid_timezone"
+            else:
+                return self.async_create_entry(title="", data=user_input)
 
-        current = self._entry.options.get(
+        current_interval = self._entry.options.get(
             CONF_SCAN_INTERVAL_MINUTES,
             self._entry.data.get(CONF_SCAN_INTERVAL_MINUTES, DEFAULT_SCAN_INTERVAL),
+        )
+        current_tz = self._entry.options.get(
+            CONF_TIMEZONE,
+            self._entry.data.get(
+                CONF_TIMEZONE, self.hass.config.time_zone
+            ),
         )
         schema = vol.Schema(
             {
                 vol.Required(
-                    CONF_SCAN_INTERVAL_MINUTES, default=current
+                    CONF_SCAN_INTERVAL_MINUTES, default=current_interval
                 ): vol.In(SCAN_INTERVAL_OPTIONS),
+                vol.Required(CONF_TIMEZONE, default=current_tz): str,
             }
         )
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(
+            step_id="init", data_schema=schema, errors=errors
+        )

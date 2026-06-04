@@ -7,12 +7,14 @@
         "data": {
           "name": "Name",
           "url": "Stations-URL",
-          "scan_interval": "Aktualisierungsintervall (Minuten)"
+          "scan_interval": "Aktualisierungsintervall (Minuten)",
+          "timezone": "Zeitzone der Station"
         }
       }
     },
     "error": {
-      "cannot_connect": "Verbindung zur Station fehlgeschlagen oder es wurden keine aktuellen Wetterdaten auf der Seite gefunden."
+      "cannot_connect": "Verbindung zur Station fehlgeschlagen oder es wurden keine aktuellen Wetterdaten auf der Seite gefunden.",
+      "invalid_timezone": "Unbekannte Zeitzone. Verwende einen IANA-Namen wie Europe/Zurich."
     },
     "abort": {
       "already_configured": "Diese Stations-URL ist bereits konfiguriert."
@@ -23,9 +25,13 @@
       "init": {
         "title": "Optionen",
         "data": {
-          "scan_interval": "Aktualisierungsintervall (Minuten)"
+          "scan_interval": "Aktualisierungsintervall (Minuten)",
+          "timezone": "Zeitzone der Station"
         }
       }
+    },
+    "error": {
+      "invalid_timezone": "Unbekannte Zeitzone. Verwende einen IANA-Namen wie Europe/Zurich."
     }
   },
   "entity": {
@@ -34,7 +40,8 @@
       "humidity": { "name": "Luftfeuchte" },
       "pressure": { "name": "Luftdruck" },
       "wind_speed": { "name": "Windgeschwindigkeit" },
-      "rain_today": { "name": "Regen heute" }
+      "rain_today": { "name": "Regen heute" },
+      "station_time": { "name": "Aufnahmezeitpunkt der Station" }
     }
   }
 }

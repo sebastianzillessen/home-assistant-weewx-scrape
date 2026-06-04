@@ -7,6 +7,7 @@ Home Assistant installation.
 from __future__ import annotations
 
 import importlib.util
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -82,6 +83,29 @@ def test_english_labels_supported() -> None:
 def test_missing_widget_raises() -> None:
     with pytest.raises(parser.WeewxParseError):
         parser.parse_current_conditions("<html><body>nothing here</body></html>")
+
+
+def test_station_datetime_from_fixture() -> None:
+    data = parser.parse_current_conditions(FIXTURE)
+    raw = data["_attrs"][parser.ATTR_STATION_TIME]
+    # "...vom 04/06/26 10:00:00" -> 4 June 2026, naive (no tz on the page).
+    assert parser.parse_station_datetime(raw) == datetime(2026, 6, 4, 10, 0, 0)
+
+
+def test_station_datetime_disambiguates_day_month() -> None:
+    # Day > 12 forces DD/MM; otherwise DD/MM is assumed.
+    assert parser.parse_station_datetime("15/06/26 09:30:00") == datetime(
+        2026, 6, 15, 9, 30, 0
+    )
+    # Month-position > 12 forces MM/DD (e.g. a US-formatted station).
+    assert parser.parse_station_datetime("06/15/2026 09:30") == datetime(
+        2026, 6, 15, 9, 30, 0
+    )
+
+
+def test_station_datetime_missing_returns_none() -> None:
+    assert parser.parse_station_datetime(None) is None
+    assert parser.parse_station_datetime("no timestamp here") is None
 
 
 def test_normalize_url() -> None:

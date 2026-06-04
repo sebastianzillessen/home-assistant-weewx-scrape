@@ -22,9 +22,14 @@ entities:
 | Pressure | atmospheric pressure | hPa | `trend` attribute (e.g. `-1.0`) |
 | Wind speed | wind speed | m/s | `direction` attribute (e.g. `WNW`) |
 | Rain today | precipitation | mm | `state_class: total_increasing` |
+| Station reading time | timestamp | – | the station's own "data as of" time |
 
-The last-reading timestamp reported by the station is available as the
-`station_time` value in the coordinator data and is not a separate entity.
+The **Station reading time** sensor exposes the timestamp printed on the page
+(its `lastupdate` line) as a proper `timestamp` entity, so dashboards can show
+how old the data is ("5 minutes ago"). The Seasons page prints this time
+without a timezone, so the integration applies the **Station time zone** chosen
+during setup (see Configuration). If the page carries no parseable timestamp,
+the sensor is unavailable.
 
 > The Seasons skin is rendered in the station owner's language. German and
 > English labels are recognised out of the box. To add another language, extend
@@ -59,8 +64,13 @@ This integration is configured entirely through the UI — no YAML required.
    - **Update interval** – `5`, `10`, `15` or `60` minutes (default `10`).
      Match this to your station's archive interval; most stations update every
      5–10 minutes, so polling faster gains nothing.
+   - **Station time zone** – IANA name (e.g. `Europe/Zurich`) applied to the
+     station's reading time, which the Seasons page prints without a timezone.
+     Defaults to Home Assistant's own timezone; change it only if the station
+     is in a different zone.
 
-The interval can be changed later via the integration's **Configure** button.
+The interval and time zone can be changed later via the integration's
+**Configure** button.
 
 ## How it works
 
