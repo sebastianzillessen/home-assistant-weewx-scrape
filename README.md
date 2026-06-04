@@ -152,9 +152,10 @@ strategy:
     - name: MeteoSwiss
       temperature: sensor.meteoswiss_at_7243_srs_temperature_at_7243
       humidity: sensor.meteoswiss_at_7243_srs_relative_humidity_at_7243
-      pressure: sensor.meteoswiss_at_7243_srs_air_pressure_at_7243
+      # Sea-level (QFF) pressure is comparable to the scraped barometer; the
+      # plain "air_pressure" (station/QFE) is unavailable on some stations.
+      pressure: sensor.meteoswiss_at_7243_srs_air_pressure_sea_level_qff_at_7243
       wind_speed: sensor.meteoswiss_at_7243_srs_wind_speed_at_7243
-      wind_speed_unit: km/h   # normalised to m/s (default: km/h)
       wind_bearing: sensor.meteoswiss_at_7243_srs_wind_direction_at_7243
       forecast: weather.meteoswiss_at_7243_srs_weather_at_7243
 
@@ -179,8 +180,10 @@ Per source:
 - `weather: <weather entity>` is a shorthand that maps those five roles from the
   entity's attributes.
 - `forecast: <weather entity>` adds a forecast card to the **Forecast** tab.
-- Wind speed is normalised to **m/s**; set `wind_speed_unit` (`km/h` default,
-  `m/s`, `mph`, `kn`) per source so the curves share one axis.
+- Units follow Home Assistant's unit system (all series share your display
+  unit — no forced conversion). Values read from a `weather.*` **attribute** are
+  labelled from the entity's `*_unit` attributes, since attributes carry no unit
+  of their own. Override a wind series' label with `wind_speed_unit` if needed.
 
 ### Option B — copy the YAML (full control)
 

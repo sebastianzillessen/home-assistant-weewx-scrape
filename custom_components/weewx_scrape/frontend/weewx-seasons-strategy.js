@@ -25,7 +25,6 @@
  *         humidity: sensor.meteoswiss_at_7243_srs_relative_humidity_at_7243
  *         pressure: sensor.meteoswiss_at_7243_srs_air_pressure_sea_level_qff_at_7243
  *         wind_speed: sensor.meteoswiss_at_7243_srs_wind_speed_at_7243
- *         wind_speed_unit: km/h     # normalised to m/s (default km/h)
  *         wind_bearing: sensor.meteoswiss_at_7243_srs_wind_direction_at_7243
  *         forecast: weather.meteoswiss_at_7243_srs_weather_at_7243
  *       - name: Met.no
@@ -95,8 +94,9 @@ function entitiesByDevice(hass) {
 //   - a sensor entity id:            "sensor.foo"
 //   - an entity attribute:           "weather.forecast_pany[temperature]"
 // As a shorthand, `weather: weather.x` pulls the standard roles from that
-// weather entity's attributes. Wind speed is normalised to m/s (assumed km/h
-// unless `wind_speed_unit` says otherwise).
+// weather entity's attributes. Series share whatever display unit Home
+// Assistant uses (no forced conversion); weather attributes, which carry no
+// unit, are labelled from the entity's *_unit attributes.
 
 const WEATHER_ATTR = {
   temperature: "temperature",
@@ -114,20 +114,24 @@ function parseRef(value) {
     : { entity: String(value).trim(), attribute: undefined };
 }
 
-// JS expression (for apexcharts `transform`) converting a wind speed to m/s.
-function windSpeedTransformToMs(unit) {
-  switch (String(unit || "km/h").toLowerCase()) {
-    case "m/s":
-    case "ms":
+// Unit to label a weather-entity attribute with. apexcharts infers a unit from
+// a sensor's `unit_of_measurement`, but a weather attribute carries none — its
+// unit lives in a sibling attribute (temperature_unit/pressure_unit/…).
+function attributeUnit(role, state) {
+  const attrs = state?.attributes || {};
+  switch (role) {
+    case "temperature":
+      return attrs.temperature_unit;
+    case "pressure":
+      return attrs.pressure_unit;
+    case "wind_speed":
+      return attrs.wind_speed_unit;
+    case "humidity":
+      return "%";
+    case "wind_bearing":
+      return "°";
+    default:
       return undefined;
-    case "mph":
-      return "return x * 0.44704;";
-    case "kn":
-    case "knot":
-    case "knots":
-      return "return x * 0.514444;";
-    default: // km/h
-      return "return x / 3.6;";
   }
 }
 
@@ -148,12 +152,17 @@ function sourceSeries(source, role, hass, opts = {}) {
     entity = source.weather;
     attribute = WEATHER_ATTR[role];
   }
-  if (!entity || !hass.states?.[entity]) return null;
+  const state = entity ? hass.states?.[entity] : undefined;
+  if (!entity || !state) return null;
   const series = { entity, name: (source.name || entity) + nameSuffix, ...rest };
-  if (attribute) series.attribute = attribute;
-  if (role === "wind_speed") {
-    const transform = windSpeedTransformToMs(source.wind_speed_unit);
-    if (transform) series.transform = transform;
+  if (attribute) {
+    series.attribute = attribute;
+    // Weather attributes have no unit_of_measurement; label them so the value
+    // isn't shown bare. An explicit `wind_speed_unit` on the source wins.
+    const unit =
+      (role === "wind_speed" && source.wind_speed_unit) ||
+      attributeUnit(role, state);
+    if (unit) series.unit = unit;
   }
   return series;
 }
