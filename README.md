@@ -24,15 +24,21 @@ entities:
 | Pressure | atmospheric pressure | hPa | `trend` attribute (e.g. `-1.0`) |
 | Pressure trend | – | hPa | the parenthesised change, as a number (e.g. `-1.0`) |
 | Wind speed | wind speed | m/s | `direction` attribute (e.g. `WNW`) |
-| Wind bearing | – | ° | wind direction in degrees (0–360), derived from the cardinal direction |
+| Wind bearing | – | ° | wind direction in degrees (0–360): the exact value in parentheses (`(292°)`) when shown, else mapped from the cardinal |
 | Rain today | precipitation | mm | `state_class: total_increasing` |
 | Station reading time | timestamp | – | the station's own "data as of" time |
 
 **Wind bearing** and **Pressure trend** are numeric counterparts to the
 `direction`/`trend` attributes, so cards that need a plottable number (a wind
 direction axis, a windrose, a trend graph) can use them directly. Wind bearing
-maps the station's cardinal abbreviation (English `WNW` or German `WNW`/`NNO`/…)
-to degrees; it is unavailable when the wind is calm and no direction is shown.
+prefers the exact degrees the page prints in parentheses (e.g. `0.4 m/s WNW
+(292°)`) and otherwise maps the cardinal abbreviation (English `WNW`, German
+`WNW`/`NNO`/…); it is unavailable when the wind is calm and no direction is shown.
+
+If the page lists the station's coordinates (e.g. `46° 55.96' N` / `009° 45.06'
+O`), they are exposed as **`latitude`/`longitude` attributes on the Station
+reading time sensor** — the dashboard strategy uses them to centre the Windy.com
+map automatically.
 
 The **Station reading time** sensor exposes the timestamp printed on the page
 (its `lastupdate` line) as a proper `timestamp` entity, so dashboards can show
@@ -90,6 +96,8 @@ optional Windy.com map and a windrose — modelled on
 [this community dashboard](https://gist.github.com/idcrook/51f27869a4ba4cd78d5cf2be8babe70e).
 There are two ways to use it.
 
+![WeeWX Seasons dashboard](docs/dashboard.png)
+
 Both need a couple of custom chart cards. In **HACS → Frontend**, install and
 then reload your browser:
 
@@ -115,15 +123,64 @@ edit.
      type: custom:weewx-seasons
      # all optional:
      windrose: true        # default true
-     windy:                # omit to hide the Windy.com map
-       lat: 46.95
-       lon: 9.78
+     # Windy.com map: shown automatically using the station's scraped
+     # coordinates when available. Override or set explicitly with:
+     # windy:
+     #   lat: 46.95
+     #   lon: 9.78
+     # …or hide it entirely with:  windy: false
    ```
 
 It creates one view per configured station and adapts automatically when you
 add or remove stations. If a new dashboard shows "no station entities", reload
 your browser (the strategy module is cached) and confirm the integration is set
 up.
+
+#### Comparing additional sources
+
+The scraped station is always shown. You can overlay **additional weather
+sources** to compare them — they appear as extra, legend-toggleable series in
+the charts, and any source that exposes a forecast gets a card on a separate
+**Forecast** tab.
+
+```yaml
+strategy:
+  type: custom:weewx-seasons
+  base_name: WeeWX            # legend label for the scraped series
+  sources:
+    # A source built from individual sensor entities (e.g. MeteoSwiss):
+    - name: MeteoSwiss
+      temperature: sensor.meteoswiss_at_7243_srs_temperature_at_7243
+      humidity: sensor.meteoswiss_at_7243_srs_relative_humidity_at_7243
+      pressure: sensor.meteoswiss_at_7243_srs_air_pressure_at_7243
+      wind_speed: sensor.meteoswiss_at_7243_srs_wind_speed_at_7243
+      wind_speed_unit: km/h   # normalised to m/s (default: km/h)
+      wind_bearing: sensor.meteoswiss_at_7243_srs_wind_direction_at_7243
+      forecast: weather.meteoswiss_at_7243_srs_weather_at_7243
+
+    # A source built from a weather entity's attributes (e.g. Met.no), using
+    # the explicit "entity[attribute]" reference syntax:
+    - name: Met.no
+      temperature: weather.forecast_pany[temperature]
+      humidity: weather.forecast_pany[humidity]
+      pressure: weather.forecast_pany[pressure]
+      wind_speed: weather.forecast_pany[wind_speed]
+      wind_bearing: weather.forecast_pany[wind_bearing]
+      forecast: weather.forecast_pany
+      # Shorthand: `weather: weather.forecast_pany` maps the five roles above
+      # from that weather entity's attributes automatically.
+```
+
+Per source:
+
+- Each role (`temperature`, `humidity`, `pressure`, `wind_speed`, `wind_bearing`)
+  accepts **either** a sensor entity id **or** an `entity[attribute]` reference
+  (read a value from any entity's attribute — handy for `weather.*` entities).
+- `weather: <weather entity>` is a shorthand that maps those five roles from the
+  entity's attributes.
+- `forecast: <weather entity>` adds a forecast card to the **Forecast** tab.
+- Wind speed is normalised to **m/s**; set `wind_speed_unit` (`km/h` default,
+  `m/s`, `mph`, `kn`) per source so the curves share one axis.
 
 ### Option B — copy the YAML (full control)
 

@@ -14,7 +14,12 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DEFAULT_NAME, DOMAIN, SENSORS, WeewxSensorDescription
 from .coordinator import WeewxScrapeCoordinator
-from .parser import ATTR_PRESSURE_TREND, ATTR_WIND_DIRECTION
+from .parser import (
+    ATTR_LATITUDE,
+    ATTR_LONGITUDE,
+    ATTR_PRESSURE_TREND,
+    ATTR_WIND_DIRECTION,
+)
 
 
 def _device_info(entry: ConfigEntry) -> DeviceInfo:
@@ -95,3 +100,14 @@ class WeewxStationTimeSensor(CoordinatorEntity[WeewxScrapeCoordinator], SensorEn
     def native_value(self) -> datetime | None:
         """Return the timezone-aware station reading time, if available."""
         return self.coordinator.data.get("station_datetime")
+
+    @property
+    def extra_state_attributes(self) -> dict | None:
+        """Expose the station's scraped coordinates, if the page shows them."""
+        attrs: dict = self.coordinator.data.get("_attrs", {})
+        out = {
+            key: attrs[key]
+            for key in (ATTR_LATITUDE, ATTR_LONGITUDE)
+            if attrs.get(key) is not None
+        }
+        return out or None

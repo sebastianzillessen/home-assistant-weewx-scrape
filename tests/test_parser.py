@@ -71,6 +71,50 @@ def test_wind_bearing_maps_cardinal_to_degrees() -> None:
     assert parser._wind_bearing("XYZ") is None
 
 
+def test_wind_bearing_prefers_exact_degrees() -> None:
+    # "0.4 m/s WNW (292°)" -> direction WNW, bearing the exact 292 (not 292.5).
+    html = (
+        "<div id='current_widget'><table>"
+        '<tr><td class="label">Wind</td>'
+        '<td class="data">0.4 m/s WNW (292&#176;)</td></tr>'
+        "</table></div>"
+    )
+    data = parser.parse_current_conditions(html)
+    assert data["_attrs"][parser.ATTR_WIND_DIRECTION] == "WNW"
+    assert data["wind_bearing"] == 292.0
+
+
+def test_wind_bearing_falls_back_to_cardinal_without_degrees() -> None:
+    html = (
+        "<div id='current_widget'><table>"
+        '<tr><td class="label">Wind</td>'
+        '<td class="data">3.0 m/s NW</td></tr>'
+        "</table></div>"
+    )
+    data = parser.parse_current_conditions(html)
+    assert data["wind_bearing"] == 315.0
+
+
+def test_parse_location_degrees_decimal_minutes() -> None:
+    page = (
+        "<tr><td>geogr. Breite</td><td>46&deg; 55.96' N</td></tr>"
+        "<tr><td>geogr. L&auml;nge</td><td>009&deg; 45.06' O</td></tr>"
+    )
+    lat, lon = parser.parse_location(page)
+    assert lat == pytest.approx(46.93267, abs=1e-4)
+    assert lon == pytest.approx(9.751, abs=1e-4)
+
+
+def test_parse_location_southern_western_hemisphere() -> None:
+    lat, lon = parser.parse_location("12° 30.0' S 045° 15.0' W")
+    assert lat == pytest.approx(-12.5)
+    assert lon == pytest.approx(-45.25)
+
+
+def test_parse_location_absent_returns_none() -> None:
+    assert parser.parse_location("no coordinates on this page") == (None, None)
+
+
 def test_station_time_attribute() -> None:
     data = parser.parse_current_conditions(FIXTURE)
     assert data["_attrs"][parser.ATTR_STATION_TIME] == (

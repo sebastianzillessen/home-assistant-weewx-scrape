@@ -16,9 +16,32 @@
  *     type: custom:weewx-seasons
  *     # all optional:
  *     windrose: true          # default true; needs plotly-graph-card
- *     windy:                  # omitted -> no Windy map
- *       lat: 46.95
- *       lon: 9.78
+ *     # Windy map: auto-centred on the station's scraped coordinates when
+ *     # available. Override with `windy: {lat, lon}` or hide with `windy: false`.
+ *     base_name: WeeWX        # legend label for the scraped series
+ *     sources:                # extra providers to compare (toggle via legend)
+ *       - name: MeteoSwiss
+ *         temperature: sensor.meteoswiss_at_7243_srs_temperature_at_7243
+ *         humidity: sensor.meteoswiss_at_7243_srs_relative_humidity_at_7243
+ *         pressure: sensor.meteoswiss_at_7243_srs_air_pressure_sea_level_qff_at_7243
+ *         wind_speed: sensor.meteoswiss_at_7243_srs_wind_speed_at_7243
+ *         wind_speed_unit: km/h     # normalised to m/s (default km/h)
+ *         wind_bearing: sensor.meteoswiss_at_7243_srs_wind_direction_at_7243
+ *         forecast: weather.meteoswiss_at_7243_srs_weather_at_7243
+ *       - name: Met.no
+ *         temperature: weather.forecast_pany[temperature]   # entity[attribute]
+ *         humidity: weather.forecast_pany[humidity]
+ *         pressure: weather.forecast_pany[pressure]
+ *         wind_speed: weather.forecast_pany[wind_speed]
+ *         wind_bearing: weather.forecast_pany[wind_bearing]
+ *         forecast: weather.forecast_pany
+ *         # shorthand equivalent for the five roles above:
+ *         #   weather: weather.forecast_pany
+ *
+ * Each source role accepts a sensor entity id, or an "entity[attribute]"
+ * reference to read a value from an entity attribute (e.g. a weather entity).
+ * Source overlays appear as extra, legend-toggleable series in the charts; any
+ * source with a `forecast`/`weather` entity also gets a card on a "Forecast" tab.
  *
  * The charts use apexcharts-card, and the windrose uses plotly-graph-card —
  * install both from HACS → Frontend. Missing cards simply render as an error
@@ -66,6 +89,87 @@ function entitiesByDevice(hass) {
   return groups;
 }
 
+// --- Additional comparison sources ---------------------------------------
+// Each entry in `config.sources` overlays a second provider onto the charts.
+// A role (temperature/humidity/pressure/wind_speed/wind_bearing) maps to either
+//   - a sensor entity id:            "sensor.foo"
+//   - an entity attribute:           "weather.forecast_pany[temperature]"
+// As a shorthand, `weather: weather.x` pulls the standard roles from that
+// weather entity's attributes. Wind speed is normalised to m/s (assumed km/h
+// unless `wind_speed_unit` says otherwise).
+
+const WEATHER_ATTR = {
+  temperature: "temperature",
+  humidity: "humidity",
+  pressure: "pressure",
+  wind_speed: "wind_speed",
+  wind_bearing: "wind_bearing",
+};
+
+// Parse an "entity[attribute]" reference into { entity, attribute }.
+function parseRef(value) {
+  const match = /^\s*([^[\]]+?)\s*\[\s*([^[\]]+?)\s*\]\s*$/.exec(value);
+  return match
+    ? { entity: match[1], attribute: match[2] }
+    : { entity: String(value).trim(), attribute: undefined };
+}
+
+// JS expression (for apexcharts `transform`) converting a wind speed to m/s.
+function windSpeedTransformToMs(unit) {
+  switch (String(unit || "km/h").toLowerCase()) {
+    case "m/s":
+    case "ms":
+      return undefined;
+    case "mph":
+      return "return x * 0.44704;";
+    case "kn":
+    case "knot":
+    case "knots":
+      return "return x * 0.514444;";
+    default: // km/h
+      return "return x / 3.6;";
+  }
+}
+
+function normalizeSources(config) {
+  return Array.isArray(config.sources) ? config.sources : [];
+}
+
+// Build a chart series for `role` from one source, or null if not provided /
+// the entity does not exist (so a wrong id is skipped instead of crashing the
+// chart).
+function sourceSeries(source, role, hass, opts = {}) {
+  const { nameSuffix = "", ...rest } = opts;
+  let entity;
+  let attribute;
+  if (source[role]) {
+    ({ entity, attribute } = parseRef(source[role]));
+  } else if (source.weather && WEATHER_ATTR[role]) {
+    entity = source.weather;
+    attribute = WEATHER_ATTR[role];
+  }
+  if (!entity || !hass.states?.[entity]) return null;
+  const series = { entity, name: (source.name || entity) + nameSuffix, ...rest };
+  if (attribute) series.attribute = attribute;
+  if (role === "wind_speed") {
+    const transform = windSpeedTransformToMs(source.wind_speed_unit);
+    if (transform) series.transform = transform;
+  }
+  return series;
+}
+
+// True if `source` can provide `role` from an entity that actually exists.
+function sourceHas(source, role, hass) {
+  return Boolean(sourceSeries(source, role, hass));
+}
+
+function addSourceSeries(series, sources, role, hass, opts = {}) {
+  for (const source of sources) {
+    const built = sourceSeries(source, role, hass, opts);
+    if (built) series.push(built);
+  }
+}
+
 function apex(title, graphSpan, series, extra = {}) {
   return {
     type: "custom:apexcharts-card",
@@ -77,36 +181,58 @@ function apex(title, graphSpan, series, extra = {}) {
   };
 }
 
-function temperatureCard(m) {
-  return apex("Temperature", "36h", [
-    {
+function temperatureCard({ m, sources, baseName, hass }) {
+  const series = [];
+  if (m[KEYS.temperature]) {
+    series.push({
       entity: m[KEYS.temperature],
-      name: "Temperature",
+      name: baseName,
       show: { extremas: true },
-    },
-  ]);
+    });
+  }
+  addSourceSeries(series, sources, "temperature", hass);
+  return series.length ? apex("Temperature", "36h", series) : null;
 }
 
-function windCard(m) {
-  const series = [
-    {
+function windCard({ m, sources, baseName, hass }) {
+  const series = [];
+  const yaxis = [{ id: "speed", min: 0 }];
+  if (m[KEYS.windSpeed]) {
+    series.push({
       entity: m[KEYS.windSpeed],
-      name: "Speed",
+      name: baseName,
       type: "line",
       yaxis_id: "speed",
       show: { extremas: "max" },
       group_by: { func: "avg" },
-    },
-  ];
-  const yaxis = [{ id: "speed", min: 0 }];
+    });
+  }
+  addSourceSeries(series, sources, "wind_speed", hass, {
+    type: "line",
+    yaxis_id: "speed",
+    group_by: { func: "avg" },
+  });
+  if (!series.length) return null;
+
+  const hasBearing =
+    m[KEYS.windBearing] || sources.some((s) => sourceHas(s, "wind_bearing", hass));
   if (m[KEYS.windBearing]) {
     series.push({
       entity: m[KEYS.windBearing],
-      name: "Direction",
+      name: `${baseName} dir`,
       type: "line",
       yaxis_id: "direction",
       group_by: { func: "avg" },
     });
+  }
+  addSourceSeries(series, sources, "wind_bearing", hass, {
+    type: "line",
+    yaxis_id: "direction",
+    group_by: { func: "avg" },
+    opacity: 0.4,
+    nameSuffix: " dir",
+  });
+  if (hasBearing) {
     yaxis.push({
       id: "direction",
       opposite: true,
@@ -125,23 +251,24 @@ function windCard(m) {
   return apex("Wind", "36h", series, { yaxis });
 }
 
-function pressureHumidityCard(m) {
+function pressureHumidityCard({ m, sources, baseName, hass }) {
   const series = [];
   const yaxis = [];
+  const hasPressure =
+    m[KEYS.pressure] || sources.some((s) => sourceHas(s, "pressure", hass));
+  const hasHumidity =
+    m[KEYS.humidity] || sources.some((s) => sourceHas(s, "humidity", hass));
   if (m[KEYS.pressure]) {
-    series.push({
-      entity: m[KEYS.pressure],
-      name: "Pressure",
-      yaxis_id: "pressure",
-    });
-    yaxis.push({ id: "pressure", decimals: 1 });
+    series.push({ entity: m[KEYS.pressure], name: `${baseName} P`, yaxis_id: "pressure" });
   }
+  addSourceSeries(series, sources, "pressure", hass, { yaxis_id: "pressure", nameSuffix: " P" });
   if (m[KEYS.humidity]) {
-    series.push({
-      entity: m[KEYS.humidity],
-      name: "Humidity",
-      yaxis_id: "humidity",
-    });
+    series.push({ entity: m[KEYS.humidity], name: `${baseName} RH`, yaxis_id: "humidity" });
+  }
+  addSourceSeries(series, sources, "humidity", hass, { yaxis_id: "humidity", nameSuffix: " RH" });
+  if (!series.length) return null;
+  if (hasPressure) yaxis.push({ id: "pressure", decimals: 1 });
+  if (hasHumidity) {
     yaxis.push({ id: "humidity", min: 0, max: 100, decimals: 0, opposite: true });
   }
   return apex("Pressure & Humidity", "36h", series, {
@@ -150,7 +277,8 @@ function pressureHumidityCard(m) {
   });
 }
 
-function rainCard(m) {
+function rainCard({ m }) {
+  if (!m[KEYS.rain]) return null;
   return apex("Rain today", "1d", [
     {
       entity: m[KEYS.rain],
@@ -273,35 +401,82 @@ function windroseCard(m) {
   };
 }
 
-function buildStationView(title, m, config) {
-  const cards = [];
-  if (m[KEYS.temperature]) cards.push(temperatureCard(m));
-  if (m[KEYS.windSpeed]) cards.push(windCard(m));
-  if (m[KEYS.pressure] || m[KEYS.humidity]) cards.push(pressureHumidityCard(m));
-  if (m[KEYS.rain]) cards.push(rainCard(m));
+// The observations view: scrape charts with optional source overlays, plus the
+// Windy map and windrose (both from the scraped station).
+function buildStationView(title, slug, m, config, hass) {
+  const ctx = {
+    m,
+    sources: normalizeSources(config),
+    baseName: config.base_name || "WeeWX",
+    hass,
+  };
+  const cards = [
+    temperatureCard(ctx),
+    windCard(ctx),
+    pressureHumidityCard(ctx),
+    rainCard(ctx),
+  ].filter(Boolean);
   if (config.windy && config.windy.lat != null && config.windy.lon != null) {
     cards.push(windyCard(config.windy));
   }
   if (config.windrose !== false && m[KEYS.windBearing] && m[KEYS.windSpeed]) {
     cards.push(windroseCard(m));
   }
+  return { title, path: slug, icon: "mdi:weather-partly-cloudy", cards };
+}
+
+// A separate tab comparing the forecast of every source that exposes a weather
+// entity (via `forecast:` or the `weather:` shorthand). Null if none do.
+function forecastView(title, slug, sources, hass) {
+  const cards = [];
+  for (const source of sources) {
+    const entity = source.forecast || source.weather;
+    if (entity && hass.states?.[entity]) {
+      cards.push({
+        type: "weather-forecast",
+        entity,
+        name: source.name || entity,
+        show_current: true,
+        show_forecast: true,
+        forecast_type: "daily",
+      });
+    }
+  }
+  if (!cards.length) return null;
   return {
-    title,
-    path: slugify(title),
-    icon: "mdi:weather-partly-cloudy",
+    title: `${title} · Forecast`,
+    path: `${slug}-forecast`,
+    icon: "mdi:weather-cloudy-clock",
     cards,
   };
+}
+
+// Resolve the Windy map config: explicit `windy` wins; otherwise fall back to
+// the station coordinates the integration scrapes (exposed as attributes on the
+// station-time sensor). `windy: false` disables the map.
+function resolveWindy(config, hass, m) {
+  if (config.windy !== undefined) return config.windy;
+  const stationTime = m[KEYS.stationTime] && hass.states?.[m[KEYS.stationTime]];
+  const lat = stationTime?.attributes?.latitude;
+  const lon = stationTime?.attributes?.longitude;
+  if (lat != null && lon != null) return { lat, lon };
+  return undefined;
 }
 
 class WeewxSeasonsDashboardStrategy {
   static async generate(config, hass) {
     const groups = entitiesByDevice(hass);
+    const sources = normalizeSources(config);
     const views = [];
     for (const [deviceId, m] of groups) {
       const device = (hass.devices || {})[deviceId];
       const title = device?.name_by_user || device?.name || "WeeWX";
-      const view = buildStationView(title, m, config);
+      const slug = slugify(title);
+      const windy = resolveWindy(config, hass, m);
+      const view = buildStationView(title, slug, m, { ...config, windy }, hass);
       if (view.cards.length) views.push(view);
+      const forecast = forecastView(title, slug, sources, hass);
+      if (forecast) views.push(forecast);
     }
     if (!views.length) {
       views.push({
