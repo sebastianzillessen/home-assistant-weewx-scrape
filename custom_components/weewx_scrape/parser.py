@@ -30,6 +30,12 @@ SENSOR_ALIASES: dict[str, tuple[str, ...]] = {
     "rain_today": ("regen heute", "rain today", "rain"),
 }
 
+# Measurements the parser *derives* from a scraped value's extras rather than
+# matching against a page label: the numeric wind bearing (from the cardinal
+# direction) and the pressure trend (from the parenthesised change). They are
+# emitted as top-level keys in the parsed data alongside the scraped ones.
+DERIVED_KEYS: tuple[str, ...] = ("wind_bearing", "pressure_trend")
+
 # Attribute keys exposed on the relevant entities.
 ATTR_WIND_DIRECTION = "wind_direction"
 ATTR_PRESSURE_TREND = "pressure_trend"
@@ -37,6 +43,28 @@ ATTR_STATION_TIME = "station_time"
 
 _ALIAS_TO_KEY: dict[str, str] = {
     alias: key for key, aliases in SENSOR_ALIASES.items() for alias in aliases
+}
+
+# Cardinal compass abbreviations to degrees (0–360). The Seasons skin prints the
+# wind direction as a localised abbreviation after the speed, so both English
+# (N/E/S/W) and German (N/O/S/W, e.g. "NNO", "OSO") spellings are mapped.
+_CARDINAL_TO_DEGREES: dict[str, float] = {
+    "N": 0.0,
+    "NNE": 22.5, "NNO": 22.5,
+    "NE": 45.0, "NO": 45.0,
+    "ENE": 67.5, "ONO": 67.5,
+    "E": 90.0, "O": 90.0,
+    "ESE": 112.5, "OSO": 112.5,
+    "SE": 135.0, "SO": 135.0,
+    "SSE": 157.5, "SSO": 157.5,
+    "S": 180.0,
+    "SSW": 202.5,
+    "SW": 225.0,
+    "WSW": 247.5,
+    "W": 270.0,
+    "WNW": 292.5,
+    "NW": 315.0,
+    "NNW": 337.5,
 }
 
 # Slice from the current_widget marker up to the end of its table so the
@@ -94,6 +122,13 @@ def _wind_direction(text: str) -> str | None:
         return None
     direction = match.group(1).strip()
     return None if direction.upper() in ("N/A", "---", "") else direction
+
+
+def _wind_bearing(direction: str | None) -> float | None:
+    """Map a cardinal wind-direction abbreviation to degrees (0–360)."""
+    if direction is None:
+        return None
+    return _CARDINAL_TO_DEGREES.get(direction.upper())
 
 
 def _pressure_trend(text: str) -> float | None:
@@ -154,9 +189,13 @@ def parse_current_conditions(page: str) -> dict:
             continue
         data[key] = _first_number(value)
         if key == "wind_speed":
-            attrs[ATTR_WIND_DIRECTION] = _wind_direction(value)
+            direction = _wind_direction(value)
+            attrs[ATTR_WIND_DIRECTION] = direction
+            data["wind_bearing"] = _wind_bearing(direction)
         elif key == "pressure":
-            attrs[ATTR_PRESSURE_TREND] = _pressure_trend(value)
+            trend = _pressure_trend(value)
+            attrs[ATTR_PRESSURE_TREND] = trend
+            data["pressure_trend"] = trend
 
     if not data:
         raise WeewxParseError("no known measurements found in current_widget")

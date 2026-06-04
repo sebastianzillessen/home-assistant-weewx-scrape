@@ -40,7 +40,9 @@
       "humidity": { "name": "Luftfeuchte" },
       "pressure": { "name": "Luftdruck" },
       "wind_speed": { "name": "Windgeschwindigkeit" },
+      "wind_bearing": { "name": "Windrichtung" },
       "rain_today": { "name": "Regen heute" },
+      "pressure_trend": { "name": "Luftdrucktendenz" },
       "station_time": { "name": "Aufnahmezeitpunkt der Station" }
     }
   }

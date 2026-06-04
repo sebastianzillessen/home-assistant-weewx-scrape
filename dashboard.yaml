@@ -10,11 +10,9 @@
 #   • layout-card       https://github.com/thomasloven/lovelace-layout-card   (provides custom:grid-layout)
 #   • plotly-graph-card https://github.com/dbuezas/lovelace-plotly-graph-card (provides custom:plotly-graph)
 #
-# The Wind chart's direction axis and the windrose need numeric wind direction
-# in degrees, and this integration only exposes a cardinal text attribute
-# ("WNW"). Add the optional template sensors from `template_sensors.yaml`
-# (see README → Dashboard) to provide `sensor.pany_wind_bearing`. Without them,
-# delete the two windrose cards and the "Direction" series in the Wind chart.
+# The Wind chart's direction axis and the windrose use `sensor.pany_wind_bearing`
+# (wind direction in degrees), which the integration provides directly — no
+# template sensors or extra setup required.
 #
 # ─── How to use ─────────────────────────────────────────────────────────────
 #   1. Dashboard → top-right menu → "Edit dashboard" → top-right menu →
@@ -101,7 +99,6 @@ cards:
           extremas: max
         group_by:
           func: avg
-      # Requires the optional `sensor.pany_wind_bearing` template sensor.
       - entity: sensor.pany_wind_bearing
         name: Direction
         type: line
@@ -169,8 +166,8 @@ cards:
       https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=%C2%B0C&metricWind=m%2Fs&zoom=9&overlay=wind&product=ecmwf&level=surface&lat=46.95&lon=9.78&detailLat=46.95&detailLon=9.78
 
   # ── Windrose (last 24h) ─────────────────────────────────────────────────────
-  # Requires the optional `sensor.pany_wind_bearing` template sensor. Speed
-  # buckets are in m/s to match this integration's wind speed unit.
+  # Uses `sensor.pany_wind_bearing` (degrees). Speed buckets are in m/s to match
+  # this integration's wind speed unit.
   - type: custom:plotly-graph
     view_layout:
       grid-area: rose

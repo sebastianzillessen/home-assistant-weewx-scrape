@@ -10,6 +10,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import (
+    DEGREE,
     PERCENTAGE,
     UnitOfPrecipitationDepth,
     UnitOfPressure,
@@ -17,7 +18,7 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 
-from .parser import SENSOR_ALIASES
+from .parser import DERIVED_KEYS, SENSOR_ALIASES
 
 DOMAIN = "weewx_scrape"
 
@@ -84,9 +85,29 @@ SENSORS: tuple[WeewxSensorDescription, ...] = (
         native_unit_of_measurement=UnitOfPrecipitationDepth.MILLIMETERS,
         state_class=SensorStateClass.TOTAL_INCREASING,
     ),
+    # Derived from the wind row's cardinal direction. No state_class: averaging a
+    # circular bearing across 0°/360° would produce misleading statistics.
+    WeewxSensorDescription(
+        key="wind_bearing",
+        translation_key="wind_bearing",
+        native_unit_of_measurement=DEGREE,
+        icon="mdi:compass-outline",
+    ),
+    # Derived from the pressure row's parenthesised change. Left without a
+    # device class: it is a delta (which can be negative), not an absolute
+    # pressure, so HA must not unit-convert it as one.
+    WeewxSensorDescription(
+        key="pressure_trend",
+        translation_key="pressure_trend",
+        native_unit_of_measurement=UnitOfPressure.HPA,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:trending-up",
+    ),
 )
 
-# Guard against the parser and presentation drifting apart.
-assert {desc.key for desc in SENSORS} == set(SENSOR_ALIASES), (
-    "SENSORS in const.py and SENSOR_ALIASES in parser.py must define the same keys"
+# Guard against the parser and presentation drifting apart: SENSORS must define
+# exactly the scraped (SENSOR_ALIASES) plus derived (DERIVED_KEYS) measurements.
+assert {desc.key for desc in SENSORS} == set(SENSOR_ALIASES) | set(DERIVED_KEYS), (
+    "SENSORS in const.py must define the scraped (SENSOR_ALIASES) and derived "
+    "(DERIVED_KEYS) keys from parser.py"
 )

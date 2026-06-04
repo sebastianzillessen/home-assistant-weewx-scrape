@@ -40,7 +40,9 @@
       "humidity": { "name": "Humidity" },
       "pressure": { "name": "Pressure" },
       "wind_speed": { "name": "Wind speed" },
+      "wind_bearing": { "name": "Wind bearing" },
       "rain_today": { "name": "Rain today" },
+      "pressure_trend": { "name": "Pressure trend" },
       "station_time": { "name": "Station reading time" }
     }
   }

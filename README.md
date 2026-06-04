@@ -20,9 +20,17 @@ entities:
 | Outdoor temperature | temperature | °C | |
 | Humidity | humidity | % | |
 | Pressure | atmospheric pressure | hPa | `trend` attribute (e.g. `-1.0`) |
+| Pressure trend | – | hPa | the parenthesised change, as a number (e.g. `-1.0`) |
 | Wind speed | wind speed | m/s | `direction` attribute (e.g. `WNW`) |
+| Wind bearing | – | ° | wind direction in degrees (0–360), derived from the cardinal direction |
 | Rain today | precipitation | mm | `state_class: total_increasing` |
 | Station reading time | timestamp | – | the station's own "data as of" time |
+
+**Wind bearing** and **Pressure trend** are numeric counterparts to the
+`direction`/`trend` attributes, so cards that need a plottable number (a wind
+direction axis, a windrose, a trend graph) can use them directly. Wind bearing
+maps the station's cardinal abbreviation (English `WNW` or German `WNW`/`NNO`/…)
+to degrees; it is unavailable when the wind is calm and no direction is shown.
 
 The **Station reading time** sensor exposes the timestamp printed on the page
 (its `lastupdate` line) as a proper `timestamp` entity, so dashboards can show
@@ -90,17 +98,11 @@ for and install each, then reload your browser:
 - [`layout-card`](https://github.com/thomasloven/lovelace-layout-card) — provides `custom:grid-layout`
 - [`plotly-graph-card`](https://github.com/dbuezas/lovelace-plotly-graph-card) — provides the windrose (`custom:plotly-graph`)
 
-### 2. Add the optional template sensors
+The wind-direction axis and the windrose use `sensor.<station>_wind_bearing`
+(degrees), which the integration creates for you — no template sensors or extra
+configuration needed.
 
-The wind-direction axis and the windrose need wind direction as **degrees**,
-but this integration exposes only a cardinal text attribute (`"WNW"`). Add the
-helpers in [`template_sensors.yaml`](template_sensors.yaml) to your
-`configuration.yaml` (merging with any existing `template:` block) and restart
-Home Assistant. They create `sensor.pany_wind_bearing` (degrees) and
-`sensor.pany_pressure_trend`. If you skip this, delete the windrose cards and
-the "Direction" series from the Wind chart.
-
-### 3. Import the view
+### 2. Import the view
 
 Open your dashboard's **Raw configuration editor** (top-right menu →
 *Edit dashboard* → top-right menu → *Raw configuration editor*) and paste the
@@ -114,7 +116,7 @@ view from `dashboard.yaml` into the `views:` list. Then:
 - Set the Windy iframe's `lat`/`lon` to your station's coordinates.
 
 > **Note:** the source dashboard expects ~14 sensors (feels-like, dew point,
-> wind gust, solar/UV, rain *rate*, …). This integration scrapes only the six
+> wind gust, solar/UV, rain *rate*, …). This integration scrapes only the
 > values the Seasons current-conditions widget shows, so those extra panels are
 > omitted. Wind speed and its windrose buckets are in **m/s** (this
 > integration's unit), not MPH.
