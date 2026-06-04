@@ -27,6 +27,7 @@ from .const import (
     DOMAIN,
     EXAMPLE_URL,
     SCAN_INTERVAL_OPTIONS,
+    USER_AGENT,
 )
 from .parser import WeewxParseError, normalize_url, parse_current_conditions
 
@@ -38,7 +39,9 @@ _REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=30)
 async def _validate_url(hass, url: str) -> None:
     """Fetch and parse the URL once; raise on failure."""
     session = async_get_clientsession(hass)
-    async with session.get(url, timeout=_REQUEST_TIMEOUT) as response:
+    async with session.get(
+        url, timeout=_REQUEST_TIMEOUT, headers={"User-Agent": USER_AGENT}
+    ) as response:
         response.raise_for_status()
         text = await response.text()
     parse_current_conditions(text)

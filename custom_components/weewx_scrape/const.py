@@ -21,6 +21,14 @@ from .parser import SENSOR_ALIASES
 
 DOMAIN = "weewx_scrape"
 
+# Some stations sit behind a WAF (e.g. mod_security) that returns HTTP 406 for
+# the default aiohttp/Python User-Agent. Identify ourselves explicitly so the
+# public page is served normally.
+USER_AGENT = (
+    "Home Assistant weewx_scrape integration "
+    "(+https://github.com/sebastianzillessen/home-assistant-weewx-scrape)"
+)
+
 # Config keys (CONF_NAME / CONF_URL come from homeassistant.const).
 CONF_SCAN_INTERVAL_MINUTES = "scan_interval"
 # IANA timezone applied to the station's (tz-naive) reading time. Defaults to

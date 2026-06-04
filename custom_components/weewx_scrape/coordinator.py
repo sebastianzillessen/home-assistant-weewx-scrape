@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DOMAIN
+from .const import DOMAIN, USER_AGENT
 from .parser import (
     ATTR_STATION_TIME,
     WeewxParseError,
@@ -48,7 +48,9 @@ class WeewxScrapeCoordinator(DataUpdateCoordinator[dict]):
     async def _async_update_data(self) -> dict:
         try:
             async with self._session.get(
-                self._url, timeout=_REQUEST_TIMEOUT
+                self._url,
+                timeout=_REQUEST_TIMEOUT,
+                headers={"User-Agent": USER_AGENT},
             ) as response:
                 response.raise_for_status()
                 text = await response.text()
