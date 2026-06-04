@@ -1,0 +1,40 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "WeeWX-Wetterstation (Seasons)",
+        "description": "Gib die URL einer WeeWX-Website mit dem Seasons-Skin ein (z. B. https://pany.gr/).",
+        "data": {
+          "name": "Name",
+          "url": "Stations-URL",
+          "scan_interval": "Aktualisierungsintervall (Minuten)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung zur Station fehlgeschlagen oder es wurden keine aktuellen Wetterdaten auf der Seite gefunden."
+    },
+    "abort": {
+      "already_configured": "Diese Stations-URL ist bereits konfiguriert."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Optionen",
+        "data": {
+          "scan_interval": "Aktualisierungsintervall (Minuten)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "outdoor_temperature": { "name": "Außentemperatur" },
+      "humidity": { "name": "Luftfeuchte" },
+      "pressure": { "name": "Luftdruck" },
+      "wind_speed": { "name": "Windgeschwindigkeit" },
+      "rain_today": { "name": "Regen heute" }
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "WeeWX Seasons weather station",
+        "description": "Enter the URL of a WeeWX website that uses the Seasons skin (for example https://pany.gr/).",
+        "data": {
+          "name": "Name",
+          "url": "Station URL",
+          "scan_interval": "Update interval (minutes)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not connect to the station, or no current weather data was found on the page."
+    },
+    "abort": {
+      "already_configured": "This station URL is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "data": {
+          "scan_interval": "Update interval (minutes)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "outdoor_temperature": { "name": "Outdoor temperature" },
+      "humidity": { "name": "Humidity" },
+      "pressure": { "name": "Pressure" },
+      "wind_speed": { "name": "Wind speed" },
+      "rain_today": { "name": "Rain today" }
+    }
+  }
+}
