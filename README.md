@@ -90,6 +90,8 @@ optional Windy.com map and a windrose — modelled on
 [this community dashboard](https://gist.github.com/idcrook/51f27869a4ba4cd78d5cf2be8babe70e).
 There are two ways to use it.
 
+![WeeWX Seasons dashboard](docs/dashboard.png)
+
 Both need a couple of custom chart cards. In **HACS → Frontend**, install and
 then reload your browser:
 
