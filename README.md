@@ -1,3 +1,5 @@
+[![release](https://github.com/sebastianzillessen/home-assistant-weewx-scrape/actions/workflows/release.yml/badge.svg)](https://github.com/sebastianzillessen/home-assistant-weewx-scrape/actions/workflows/release.yml)
+
 # WeeWX Seasons (scrape) — Home Assistant integration
 
 A Home Assistant custom integration that reads **current weather conditions
