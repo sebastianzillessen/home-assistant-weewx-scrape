@@ -1,0 +1,5 @@
+# Development/test dependencies.
+# The integration itself has no third-party runtime deps (see manifest.json
+# "requirements": []); the parser is pure stdlib. Home Assistant provides the
+# runtime. These are only needed to run the offline parser tests.
+pytest>=8.0
