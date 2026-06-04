@@ -1,0 +1,45 @@
+# Optional template sensors for the WeeWX Seasons (scrape) dashboard.
+#
+# This integration exposes wind direction only as a cardinal text *attribute*
+# ("WNW") on the wind-speed sensor, and pressure trend as a numeric *attribute*
+# on the pressure sensor. The example dashboard's wind-direction axis and
+# windrose need a numeric (degrees) entity, so this file derives one.
+#
+# Usage — add to your `configuration.yaml` (merge with any existing `template:`
+# block) and restart Home Assistant, or include it:
+#     template: !include template_sensors.yaml
+# (when including, drop the top-level `template:` key below and keep the list).
+#
+# Replace every `pany` with your station's slug (see README → Dashboard).
+
+template:
+  - sensor:
+      # Wind direction as degrees (0–360), derived from the cardinal attribute.
+      # Covers English (N/E/S/W) and German (Nord/Ost/Süd/West) compass labels.
+      - name: "Pany wind bearing"
+        unique_id: pany_wind_bearing
+        unit_of_measurement: "°"
+        state_class: measurement
+        availability: >
+          {{ state_attr('sensor.pany_wind_speed', 'direction') not in
+             [none, 'unknown', 'unavailable'] }}
+        state: >
+          {% set d = (state_attr('sensor.pany_wind_speed', 'direction') | string).upper() %}
+          {% set m = {
+            'N': 0, 'NNE': 22.5, 'NE': 45, 'ENE': 67.5,
+            'E': 90, 'ESE': 112.5, 'SE': 135, 'SSE': 157.5,
+            'S': 180, 'SSW': 202.5, 'SW': 225, 'WSW': 247.5,
+            'W': 270, 'WNW': 292.5, 'NW': 315, 'NNW': 337.5,
+            'NNO': 22.5, 'NO': 45, 'ONO': 67.5,
+            'O': 90, 'OSO': 112.5, 'SO': 135, 'SSO': 157.5,
+            'SSW': 202.5, 'SW': 225, 'WSW': 247.5
+          } %}
+          {{ m[d] if d in m else none }}
+
+      # Pressure trend as a plain number (hPa change), from the `trend` attribute.
+      - name: "Pany pressure trend"
+        unique_id: pany_pressure_trend
+        unit_of_measurement: "hPa"
+        state_class: measurement
+        availability: "{{ state_attr('sensor.pany_pressure', 'trend') is not none }}"
+        state: "{{ state_attr('sensor.pany_pressure', 'trend') | float(0) }}"

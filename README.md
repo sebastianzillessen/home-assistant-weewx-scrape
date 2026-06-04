@@ -74,19 +74,50 @@ The interval and time zone can be changed later via the integration's
 
 ## Dashboard
 
-A ready-made Lovelace dashboard is included in
-[`dashboard.yaml`](dashboard.yaml). It uses only Home Assistant's built-in
-cards (glance, gauges, an entities card that surfaces the `direction` and
-`trend` attributes, and history graphs), so there is nothing extra to install.
+A ready-made Lovelace weather dashboard is included in
+[`dashboard.yaml`](dashboard.yaml) — a grid layout with charts for
+temperature, wind (speed + direction), pressure & humidity, daily rain, a live
+Windy.com map and a windrose. It is modelled on
+[this community dashboard](https://gist.github.com/idcrook/51f27869a4ba4cd78d5cf2be8babe70e),
+adapted to the entities this integration provides.
 
-To use it, open your dashboard's **Raw configuration editor** (top-right menu →
-*Edit dashboard* → top-right menu → *Raw configuration editor*), paste the view
-from `dashboard.yaml`, then replace every `sensor.pany_…` entity ID with your
-own station's slug. The slug is the device name you chose during setup,
-lower-cased with spaces replaced by underscores (e.g. a station named `Pany`
-becomes `sensor.pany_outdoor_temperature`). The exact entity IDs are listed
-under **Settings → Devices & Services → WeeWX Seasons (scrape)** on the device
-page.
+### 1. Install the custom cards (HACS)
+
+The dashboard uses three custom frontend cards. In **HACS → Frontend**, search
+for and install each, then reload your browser:
+
+- [`apexcharts-card`](https://github.com/RomRider/apexcharts-card) — the charts
+- [`layout-card`](https://github.com/thomasloven/lovelace-layout-card) — provides `custom:grid-layout`
+- [`plotly-graph-card`](https://github.com/dbuezas/lovelace-plotly-graph-card) — provides the windrose (`custom:plotly-graph`)
+
+### 2. Add the optional template sensors
+
+The wind-direction axis and the windrose need wind direction as **degrees**,
+but this integration exposes only a cardinal text attribute (`"WNW"`). Add the
+helpers in [`template_sensors.yaml`](template_sensors.yaml) to your
+`configuration.yaml` (merging with any existing `template:` block) and restart
+Home Assistant. They create `sensor.pany_wind_bearing` (degrees) and
+`sensor.pany_pressure_trend`. If you skip this, delete the windrose cards and
+the "Direction" series from the Wind chart.
+
+### 3. Import the view
+
+Open your dashboard's **Raw configuration editor** (top-right menu →
+*Edit dashboard* → top-right menu → *Raw configuration editor*) and paste the
+view from `dashboard.yaml` into the `views:` list. Then:
+
+- Replace every `pany` in the entity IDs with your own station's slug — the
+  device name you chose during setup, lower-cased with spaces replaced by
+  underscores (e.g. a station named `Pany` → `sensor.pany_outdoor_temperature`).
+  The exact IDs are listed under **Settings → Devices & Services → WeeWX
+  Seasons (scrape)** on the device page.
+- Set the Windy iframe's `lat`/`lon` to your station's coordinates.
+
+> **Note:** the source dashboard expects ~14 sensors (feels-like, dew point,
+> wind gust, solar/UV, rain *rate*, …). This integration scrapes only the six
+> values the Seasons current-conditions widget shows, so those extra panels are
+> omitted. Wind speed and its windrose buckets are in **m/s** (this
+> integration's unit), not MPH.
 
 ## How it works
 
