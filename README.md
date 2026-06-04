@@ -20,9 +20,17 @@ entities:
 | Outdoor temperature | temperature | °C | |
 | Humidity | humidity | % | |
 | Pressure | atmospheric pressure | hPa | `trend` attribute (e.g. `-1.0`) |
+| Pressure trend | – | hPa | the parenthesised change, as a number (e.g. `-1.0`) |
 | Wind speed | wind speed | m/s | `direction` attribute (e.g. `WNW`) |
+| Wind bearing | – | ° | wind direction in degrees (0–360), derived from the cardinal direction |
 | Rain today | precipitation | mm | `state_class: total_increasing` |
 | Station reading time | timestamp | – | the station's own "data as of" time |
+
+**Wind bearing** and **Pressure trend** are numeric counterparts to the
+`direction`/`trend` attributes, so cards that need a plottable number (a wind
+direction axis, a windrose, a trend graph) can use them directly. Wind bearing
+maps the station's cardinal abbreviation (English `WNW` or German `WNW`/`NNO`/…)
+to degrees; it is unavailable when the wind is calm and no direction is shown.
 
 The **Station reading time** sensor exposes the timestamp printed on the page
 (its `lastupdate` line) as a proper `timestamp` entity, so dashboards can show
@@ -71,6 +79,71 @@ This integration is configured entirely through the UI — no YAML required.
 
 The interval and time zone can be changed later via the integration's
 **Configure** button.
+
+## Dashboard
+
+The integration ships a ready-made weather dashboard with charts for
+temperature, wind (speed + direction), pressure & humidity, daily rain, an
+optional Windy.com map and a windrose — modelled on
+[this community dashboard](https://gist.github.com/idcrook/51f27869a4ba4cd78d5cf2be8babe70e).
+There are two ways to use it.
+
+Both need a couple of custom chart cards. In **HACS → Frontend**, install and
+then reload your browser:
+
+- [`apexcharts-card`](https://github.com/RomRider/apexcharts-card) — the charts
+- [`plotly-graph-card`](https://github.com/dbuezas/lovelace-plotly-graph-card) — the windrose (`custom:plotly-graph`)
+
+HACS cannot install dashboards themselves (there is no such category), so the
+dashboard is delivered the two ways below instead.
+
+### Option A — dashboard strategy (recommended)
+
+The integration registers a **dashboard strategy** with the frontend
+automatically (no extra HACS plugin or Lovelace resource needed). It discovers
+your station entities and builds the whole dashboard for you — no entity IDs to
+edit.
+
+1. **Settings → Dashboards → Add dashboard → New dashboard from scratch.**
+2. Open it, then **Edit → ⋮ → Raw configuration editor** and replace the
+   contents with:
+
+   ```yaml
+   strategy:
+     type: custom:weewx-seasons
+     # all optional:
+     windrose: true        # default true
+     windy:                # omit to hide the Windy.com map
+       lat: 46.95
+       lon: 9.78
+   ```
+
+It creates one view per configured station and adapts automatically when you
+add or remove stations. If a new dashboard shows "no station entities", reload
+your browser (the strategy module is cached) and confirm the integration is set
+up.
+
+### Option B — copy the YAML (full control)
+
+Prefer to tweak the layout yourself? [`dashboard.yaml`](dashboard.yaml) contains
+the same dashboard as a plain view (it additionally uses
+[`layout-card`](https://github.com/thomasloven/lovelace-layout-card) for a fixed
+grid). Open your dashboard's **Raw configuration editor**, paste it into the
+`views:` list, then:
+
+- Replace every `pany` in the entity IDs with your own station's slug — the
+  device name you chose during setup, lower-cased with spaces replaced by
+  underscores (e.g. a station named `Pany` → `sensor.pany_outdoor_temperature`).
+  The exact IDs are listed under **Settings → Devices & Services → WeeWX
+  Seasons (scrape)** on the device page.
+- Set the Windy iframe's `lat`/`lon` to your station's coordinates.
+
+> **Note:** the source dashboard expects ~14 sensors (feels-like, dew point,
+> wind gust, solar/UV, rain *rate*, …). This integration scrapes only the
+> values the Seasons current-conditions widget shows, so those extra panels are
+> omitted. Wind speed and its windrose buckets are in **m/s** (this
+> integration's unit), not MPH. The wind-direction axis and windrose use the
+> `Wind bearing` sensor, which the integration provides directly.
 
 ## How it works
 

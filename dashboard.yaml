@@ -1,0 +1,295 @@
+# WeeWX Seasons (scrape) — example Lovelace dashboard
+#
+# A weather dashboard modelled on https://gist.github.com/idcrook/51f27869a4ba4cd78d5cf2be8babe70e
+# adapted to the entities this integration actually exposes.
+#
+# ─── Requirements ───────────────────────────────────────────────────────────
+# This dashboard uses three custom frontend cards. Install them via HACS
+# (HACS → Frontend → search → install), then reload your browser:
+#   • apexcharts-card   https://github.com/RomRider/apexcharts-card
+#   • layout-card       https://github.com/thomasloven/lovelace-layout-card   (provides custom:grid-layout)
+#   • plotly-graph-card https://github.com/dbuezas/lovelace-plotly-graph-card (provides custom:plotly-graph)
+#
+# The Wind chart's direction axis and the windrose use `sensor.pany_wind_bearing`
+# (wind direction in degrees), which the integration provides directly — no
+# template sensors or extra setup required.
+#
+# ─── How to use ─────────────────────────────────────────────────────────────
+#   1. Dashboard → top-right menu → "Edit dashboard" → top-right menu →
+#      "Raw configuration editor".
+#   2. Paste this view into the `views:` list.
+#   3. Replace every `pany` in the entity IDs with your station's slug — the
+#      device name from setup, lower-cased with spaces as underscores
+#      (e.g. "Pany" → `sensor.pany_outdoor_temperature`). The exact IDs are
+#      under Settings → Devices & Services → WeeWX Seasons (scrape) → device.
+#   4. Set the Windy iframe `lat`/`lon` to your station's location.
+
+type: custom:grid-layout
+title: Weather
+path: weather
+icon: mdi:weather-partly-cloudy
+layout:
+  grid-template-columns: repeat(2, 1fr)
+  grid-template-areas: |-
+    "temps wind"
+    "press rain"
+    "windy rose"
+  place-content: stretch
+  mediaquery:
+    "(max-width: 1100px)":
+      grid-template-columns: 1fr
+      grid-template-areas: |-
+        "temps"
+        "wind"
+        "press"
+        "rain"
+        "windy"
+        "rose"
+badges: []
+cards:
+  # ── Temperature ───────────────────────────────────────────────────────────
+  - type: custom:apexcharts-card
+    view_layout:
+      grid-area: temps
+    header:
+      show: true
+      title: Temperature
+      show_states: true
+      colorize_states: true
+    graph_span: 36h
+    all_series_config:
+      stroke_width: 2
+    series:
+      - entity: sensor.pany_outdoor_temperature
+        name: Temperature
+        show:
+          extremas: true
+
+  # ── Wind (speed + direction in degrees) ─────────────────────────────────────
+  - type: custom:apexcharts-card
+    view_layout:
+      grid-area: wind
+    header:
+      show: true
+      title: Wind
+      show_states: true
+      colorize_states: true
+    graph_span: 36h
+    all_series_config:
+      stroke_width: 2
+    yaxis:
+      - id: speed
+        min: 0
+      - id: direction
+        opposite: true
+        min: 0
+        max: 360
+        decimals: 0
+        apex_config:
+          tickAmount: 8
+          labels:
+            formatter: >
+              EVAL:function(val) { const c = {0:"N",90:"E",180:"S",270:"W",360:"N"}; return c[val] || ""; }
+    series:
+      - entity: sensor.pany_wind_speed
+        name: Speed
+        type: line
+        yaxis_id: speed
+        show:
+          extremas: max
+        group_by:
+          func: avg
+      - entity: sensor.pany_wind_bearing
+        name: Direction
+        type: line
+        yaxis_id: direction
+        group_by:
+          func: avg
+
+  # ── Pressure & Humidity ─────────────────────────────────────────────────────
+  - type: custom:apexcharts-card
+    view_layout:
+      grid-area: press
+    header:
+      show: true
+      title: Pressure & Humidity
+      show_states: true
+      colorize_states: true
+    graph_span: 36h
+    all_series_config:
+      stroke_width: 2
+      show:
+        extremas: true
+    yaxis:
+      - id: pressure
+        decimals: 1
+      - id: humidity
+        min: 0
+        max: 100
+        decimals: 0
+        opposite: true
+    series:
+      - entity: sensor.pany_pressure
+        name: Pressure
+        yaxis_id: pressure
+      - entity: sensor.pany_humidity
+        name: Humidity
+        yaxis_id: humidity
+
+  # ── Rain today (cumulative) ─────────────────────────────────────────────────
+  - type: custom:apexcharts-card
+    view_layout:
+      grid-area: rain
+    header:
+      show: true
+      title: Rain today
+      show_states: true
+      colorize_states: true
+    graph_span: 1d
+    all_series_config:
+      stroke_width: 2
+    series:
+      - entity: sensor.pany_rain_today
+        name: Daily accumulation
+        type: area
+        opacity: 0.3
+        show:
+          extremas: max
+
+  # ── Windy.com live map (generic iframe — set lat/lon to your station) ───────
+  - type: iframe
+    view_layout:
+      grid-area: windy
+    aspect_ratio: 75%
+    # Pany/Luzein (CH) ≈ 46.95, 9.78 — change to your station's coordinates.
+    url: >-
+      https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=%C2%B0C&metricWind=m%2Fs&zoom=9&overlay=wind&product=ecmwf&level=surface&lat=46.95&lon=9.78&detailLat=46.95&detailLon=9.78
+
+  # ── Windrose (last 24h) ─────────────────────────────────────────────────────
+  # Uses `sensor.pany_wind_bearing` (degrees). Speed buckets are in m/s to match
+  # this integration's wind speed unit.
+  - type: custom:plotly-graph
+    view_layout:
+      grid-area: rose
+    title: Windrose
+    layout:
+      legend:
+        orientation: h
+      margin:
+        t: 25
+      polar:
+        barmode: stack
+        bargap: 0
+        radialaxis:
+          type: linear
+          ticksuffix: '%'
+          angle: 45
+          dtick: 4
+        angularaxis:
+          direction: clockwise
+    config:
+      displaylogo: false
+    hours_to_show: 24
+    raw_plotly_config: true
+    an: |-
+      $ex vars.theta = ( ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S',
+      'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'] )
+    fn: |-
+      $ex vars.windRose = (vars, minSpeed, maxSpeed) => {
+          const headings = [
+              { label: "N",   min: 348.75, max:  11.25 },
+              { label: "NNE", min:  11.25, max:  33.75 },
+              { label: "NE",  min:  33.75, max:  56.25 },
+              { label: "ENE", min:  56.25, max:  78.75 },
+              { label: "E",   min:  78.75, max: 101.25 },
+              { label: "ESE", min: 101.25, max: 123.75 },
+              { label: "SE",  min: 123.75, max: 146.25 },
+              { label: "SSE", min: 146.25, max: 168.75 },
+              { label: "S",   min: 168.75, max: 191.25 },
+              { label: "SSW", min: 191.25, max: 213.75 },
+              { label: "SW",  min: 213.75, max: 236.25 },
+              { label: "WSW", min: 236.25, max: 258.75 },
+              { label: "W",   min: 258.75, max: 281.25 },
+              { label: "WNW", min: 281.25, max: 303.75 },
+              { label: "NW",  min: 303.75, max: 326.25 },
+              { label: "NNW", min: 326.25, max: 348.75 }
+          ];
+          let   headingsCount    = headings.map(() => 0);
+          const observationCount = vars.windDirections.length;
+          for (let i = 0; i < observationCount; i++) {
+              const direction = vars.windDirections[i];
+              const speed     = vars.windSpeeds[i];
+              if ( (minSpeed != 0 || maxSpeed != 0) && (speed > minSpeed && speed <= maxSpeed) ) {
+                  const headingFound = headings.find(seg => {
+                    if (seg.min < seg.max) {
+                          return direction >= seg.min && direction <= seg.max;
+                      } else if ( seg.min > seg.max ) {
+                          return direction >= seg.min || direction <= seg.max;
+                      }
+                      return false;
+                  });
+                  headingsCount[headings.indexOf(headingFound)]++;
+              } else if (minSpeed == 0 && maxSpeed == 0 && speed == 0) {
+                  headingsCount.forEach((_, j) => headingsCount[j]++);
+              }
+          }
+          return ( headingsCount.map(count => (count / observationCount) * 100) );
+      }
+    defaults:
+      entity:
+        hovertemplate: '%{theta} %{r:.2f}%'
+    entities:
+      - entity: sensor.pany_wind_bearing
+        internal: true
+        filters:
+          - resample: 5m
+          - map_y: parseFloat(y)
+        dn: $fn ({ ys, vars }) => { vars.windDirections = ys }
+      - entity: sensor.pany_wind_speed
+        internal: true
+        filters:
+          - resample: 5m
+          - map_y: parseFloat(y)
+        sn: $fn ({ ys, vars }) => { vars.windSpeeds = ys }
+      - entity: ''
+        type: barpolar
+        name: ≤1 m/s
+        r: $ex vars.windRose( vars, 0, 1 )
+        theta: $ex vars.theta
+        showlegend: $ex vars.windRose(vars, 0, 1).some((x) => x > 0)
+      - entity: ''
+        type: barpolar
+        name: ≤3 m/s
+        r: $ex vars.windRose( vars, 1, 3 )
+        theta: $ex vars.theta
+        showlegend: $ex vars.windRose(vars, 1, 3).some((x) => x > 0)
+      - entity: ''
+        type: barpolar
+        name: ≤5 m/s
+        r: $ex vars.windRose( vars, 3, 5 )
+        theta: $ex vars.theta
+        showlegend: $ex vars.windRose(vars, 3, 5).some((x) => x > 0)
+      - entity: ''
+        type: barpolar
+        name: ≤8 m/s
+        r: $ex vars.windRose( vars, 5, 8 )
+        theta: $ex vars.theta
+        showlegend: $ex vars.windRose(vars, 5, 8).some((x) => x > 0)
+      - entity: ''
+        type: barpolar
+        name: ≤11 m/s
+        r: $ex vars.windRose( vars, 8, 11 )
+        theta: $ex vars.theta
+        showlegend: $ex vars.windRose(vars, 8, 11).some((x) => x > 0)
+      - entity: ''
+        type: barpolar
+        name: ≤14 m/s
+        r: $ex vars.windRose( vars, 11, 14 )
+        theta: $ex vars.theta
+        showlegend: $ex vars.windRose(vars, 11, 14).some((x) => x > 0)
+      - entity: ''
+        type: barpolar
+        name: '>14 m/s'
+        r: $ex vars.windRose( vars, 14, 1000 )
+        theta: $ex vars.theta
+        showlegend: $ex vars.windRose(vars, 14, 1000).some((x) => x > 0)

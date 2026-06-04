@@ -43,9 +43,32 @@ def test_pressure_picks_value_not_trend() -> None:
     assert data["_attrs"][parser.ATTR_PRESSURE_TREND] == -1.0
 
 
+def test_pressure_trend_is_a_derived_value() -> None:
+    # The trend is also exposed as a top-level derived measurement.
+    data = parser.parse_current_conditions(FIXTURE)
+    assert data["pressure_trend"] == -1.0
+
+
 def test_calm_wind_direction_is_none() -> None:
     data = parser.parse_current_conditions(FIXTURE)
     assert data["_attrs"][parser.ATTR_WIND_DIRECTION] is None
+
+
+def test_calm_wind_bearing_is_none() -> None:
+    # No direction -> no derived bearing.
+    data = parser.parse_current_conditions(FIXTURE)
+    assert data["wind_bearing"] is None
+
+
+def test_wind_bearing_maps_cardinal_to_degrees() -> None:
+    assert parser._wind_bearing("NW") == 315.0
+    assert parser._wind_bearing("n") == 0.0
+    assert parser._wind_bearing(None) is None
+    # German compass spelling (Ost / Nordost) is mapped too.
+    assert parser._wind_bearing("O") == 90.0
+    assert parser._wind_bearing("NNO") == 22.5
+    # An unknown abbreviation yields no bearing rather than a wrong one.
+    assert parser._wind_bearing("XYZ") is None
 
 
 def test_station_time_attribute() -> None:
@@ -78,6 +101,9 @@ def test_english_labels_supported() -> None:
     assert data["pressure"] == 1004.0
     assert data["wind_speed"] == 3.1
     assert data["_attrs"][parser.ATTR_WIND_DIRECTION] == "NW"
+    assert data["wind_bearing"] == 315.0
+    # No parenthesised pressure change in this page -> no trend.
+    assert data["pressure_trend"] is None
 
 
 def test_missing_widget_raises() -> None:
