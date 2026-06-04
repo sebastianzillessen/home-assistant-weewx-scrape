@@ -135,8 +135,10 @@ function normalizeSources(config) {
   return Array.isArray(config.sources) ? config.sources : [];
 }
 
-// Build a chart series for `role` from one source, or null if not provided.
-function sourceSeries(source, role, opts = {}) {
+// Build a chart series for `role` from one source, or null if not provided /
+// the entity does not exist (so a wrong id is skipped instead of crashing the
+// chart).
+function sourceSeries(source, role, hass, opts = {}) {
   const { nameSuffix = "", ...rest } = opts;
   let entity;
   let attribute;
@@ -146,7 +148,7 @@ function sourceSeries(source, role, opts = {}) {
     entity = source.weather;
     attribute = WEATHER_ATTR[role];
   }
-  if (!entity) return null;
+  if (!entity || !hass.states?.[entity]) return null;
   const series = { entity, name: (source.name || entity) + nameSuffix, ...rest };
   if (attribute) series.attribute = attribute;
   if (role === "wind_speed") {
@@ -156,14 +158,14 @@ function sourceSeries(source, role, opts = {}) {
   return series;
 }
 
-// True if `source` can provide `role` (explicit ref or weather shorthand).
-function sourceHas(source, role) {
-  return Boolean(source[role] || (source.weather && WEATHER_ATTR[role]));
+// True if `source` can provide `role` from an entity that actually exists.
+function sourceHas(source, role, hass) {
+  return Boolean(sourceSeries(source, role, hass));
 }
 
-function addSourceSeries(series, sources, role, opts = {}) {
+function addSourceSeries(series, sources, role, hass, opts = {}) {
   for (const source of sources) {
-    const built = sourceSeries(source, role, opts);
+    const built = sourceSeries(source, role, hass, opts);
     if (built) series.push(built);
   }
 }
@@ -179,7 +181,7 @@ function apex(title, graphSpan, series, extra = {}) {
   };
 }
 
-function temperatureCard({ m, sources, baseName }) {
+function temperatureCard({ m, sources, baseName, hass }) {
   const series = [];
   if (m[KEYS.temperature]) {
     series.push({
@@ -188,11 +190,11 @@ function temperatureCard({ m, sources, baseName }) {
       show: { extremas: true },
     });
   }
-  addSourceSeries(series, sources, "temperature");
+  addSourceSeries(series, sources, "temperature", hass);
   return series.length ? apex("Temperature", "36h", series) : null;
 }
 
-function windCard({ m, sources, baseName }) {
+function windCard({ m, sources, baseName, hass }) {
   const series = [];
   const yaxis = [{ id: "speed", min: 0 }];
   if (m[KEYS.windSpeed]) {
@@ -205,7 +207,7 @@ function windCard({ m, sources, baseName }) {
       group_by: { func: "avg" },
     });
   }
-  addSourceSeries(series, sources, "wind_speed", {
+  addSourceSeries(series, sources, "wind_speed", hass, {
     type: "line",
     yaxis_id: "speed",
     group_by: { func: "avg" },
@@ -213,7 +215,7 @@ function windCard({ m, sources, baseName }) {
   if (!series.length) return null;
 
   const hasBearing =
-    m[KEYS.windBearing] || sources.some((s) => sourceHas(s, "wind_bearing"));
+    m[KEYS.windBearing] || sources.some((s) => sourceHas(s, "wind_bearing", hass));
   if (m[KEYS.windBearing]) {
     series.push({
       entity: m[KEYS.windBearing],
@@ -223,7 +225,7 @@ function windCard({ m, sources, baseName }) {
       group_by: { func: "avg" },
     });
   }
-  addSourceSeries(series, sources, "wind_bearing", {
+  addSourceSeries(series, sources, "wind_bearing", hass, {
     type: "line",
     yaxis_id: "direction",
     group_by: { func: "avg" },
@@ -249,21 +251,21 @@ function windCard({ m, sources, baseName }) {
   return apex("Wind", "36h", series, { yaxis });
 }
 
-function pressureHumidityCard({ m, sources, baseName }) {
+function pressureHumidityCard({ m, sources, baseName, hass }) {
   const series = [];
   const yaxis = [];
   const hasPressure =
-    m[KEYS.pressure] || sources.some((s) => sourceHas(s, "pressure"));
+    m[KEYS.pressure] || sources.some((s) => sourceHas(s, "pressure", hass));
   const hasHumidity =
-    m[KEYS.humidity] || sources.some((s) => sourceHas(s, "humidity"));
+    m[KEYS.humidity] || sources.some((s) => sourceHas(s, "humidity", hass));
   if (m[KEYS.pressure]) {
     series.push({ entity: m[KEYS.pressure], name: `${baseName} P`, yaxis_id: "pressure" });
   }
-  addSourceSeries(series, sources, "pressure", { yaxis_id: "pressure", nameSuffix: " P" });
+  addSourceSeries(series, sources, "pressure", hass, { yaxis_id: "pressure", nameSuffix: " P" });
   if (m[KEYS.humidity]) {
     series.push({ entity: m[KEYS.humidity], name: `${baseName} RH`, yaxis_id: "humidity" });
   }
-  addSourceSeries(series, sources, "humidity", { yaxis_id: "humidity", nameSuffix: " RH" });
+  addSourceSeries(series, sources, "humidity", hass, { yaxis_id: "humidity", nameSuffix: " RH" });
   if (!series.length) return null;
   if (hasPressure) yaxis.push({ id: "pressure", decimals: 1 });
   if (hasHumidity) {
@@ -401,11 +403,12 @@ function windroseCard(m) {
 
 // The observations view: scrape charts with optional source overlays, plus the
 // Windy map and windrose (both from the scraped station).
-function buildStationView(title, slug, m, config) {
+function buildStationView(title, slug, m, config, hass) {
   const ctx = {
     m,
     sources: normalizeSources(config),
     baseName: config.base_name || "WeeWX",
+    hass,
   };
   const cards = [
     temperatureCard(ctx),
@@ -424,11 +427,11 @@ function buildStationView(title, slug, m, config) {
 
 // A separate tab comparing the forecast of every source that exposes a weather
 // entity (via `forecast:` or the `weather:` shorthand). Null if none do.
-function forecastView(title, slug, sources) {
+function forecastView(title, slug, sources, hass) {
   const cards = [];
   for (const source of sources) {
     const entity = source.forecast || source.weather;
-    if (entity) {
+    if (entity && hass.states?.[entity]) {
       cards.push({
         type: "weather-forecast",
         entity,
@@ -470,9 +473,9 @@ class WeewxSeasonsDashboardStrategy {
       const title = device?.name_by_user || device?.name || "WeeWX";
       const slug = slugify(title);
       const windy = resolveWindy(config, hass, m);
-      const view = buildStationView(title, slug, m, { ...config, windy });
+      const view = buildStationView(title, slug, m, { ...config, windy }, hass);
       if (view.cards.length) views.push(view);
-      const forecast = forecastView(title, slug, sources);
+      const forecast = forecastView(title, slug, sources, hass);
       if (forecast) views.push(forecast);
     }
     if (!views.length) {

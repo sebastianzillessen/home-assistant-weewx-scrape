@@ -152,7 +152,7 @@ strategy:
     - name: MeteoSwiss
       temperature: sensor.meteoswiss_at_7243_srs_temperature_at_7243
       humidity: sensor.meteoswiss_at_7243_srs_relative_humidity_at_7243
-      pressure: sensor.meteoswiss_at_7243_srs_air_pressure_sea_level_qff_at_7243
+      pressure: sensor.meteoswiss_at_7243_srs_air_pressure_at_7243
       wind_speed: sensor.meteoswiss_at_7243_srs_wind_speed_at_7243
       wind_speed_unit: km/h   # normalised to m/s (default: km/h)
       wind_bearing: sensor.meteoswiss_at_7243_srs_wind_direction_at_7243
