@@ -3,6 +3,7 @@
   "name": "WeeWX Seasons (scrape)",
   "codeowners": ["@sebastianzillessen"],
   "config_flow": true,
+  "dependencies": ["http", "frontend"],
   "documentation": "https://github.com/sebastianzillessen/home-assistant-weewx-scrape",
   "integration_type": "service",
   "iot_class": "cloud_polling",

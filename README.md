@@ -82,31 +82,54 @@ The interval and time zone can be changed later via the integration's
 
 ## Dashboard
 
-A ready-made Lovelace weather dashboard is included in
-[`dashboard.yaml`](dashboard.yaml) — a grid layout with charts for
-temperature, wind (speed + direction), pressure & humidity, daily rain, a live
-Windy.com map and a windrose. It is modelled on
-[this community dashboard](https://gist.github.com/idcrook/51f27869a4ba4cd78d5cf2be8babe70e),
-adapted to the entities this integration provides.
+The integration ships a ready-made weather dashboard with charts for
+temperature, wind (speed + direction), pressure & humidity, daily rain, an
+optional Windy.com map and a windrose — modelled on
+[this community dashboard](https://gist.github.com/idcrook/51f27869a4ba4cd78d5cf2be8babe70e).
+There are two ways to use it.
 
-### 1. Install the custom cards (HACS)
-
-The dashboard uses three custom frontend cards. In **HACS → Frontend**, search
-for and install each, then reload your browser:
+Both need a couple of custom chart cards. In **HACS → Frontend**, install and
+then reload your browser:
 
 - [`apexcharts-card`](https://github.com/RomRider/apexcharts-card) — the charts
-- [`layout-card`](https://github.com/thomasloven/lovelace-layout-card) — provides `custom:grid-layout`
-- [`plotly-graph-card`](https://github.com/dbuezas/lovelace-plotly-graph-card) — provides the windrose (`custom:plotly-graph`)
+- [`plotly-graph-card`](https://github.com/dbuezas/lovelace-plotly-graph-card) — the windrose (`custom:plotly-graph`)
 
-The wind-direction axis and the windrose use `sensor.<station>_wind_bearing`
-(degrees), which the integration creates for you — no template sensors or extra
-configuration needed.
+HACS cannot install dashboards themselves (there is no such category), so the
+dashboard is delivered the two ways below instead.
 
-### 2. Import the view
+### Option A — dashboard strategy (recommended)
 
-Open your dashboard's **Raw configuration editor** (top-right menu →
-*Edit dashboard* → top-right menu → *Raw configuration editor*) and paste the
-view from `dashboard.yaml` into the `views:` list. Then:
+The integration registers a **dashboard strategy** with the frontend
+automatically (no extra HACS plugin or Lovelace resource needed). It discovers
+your station entities and builds the whole dashboard for you — no entity IDs to
+edit.
+
+1. **Settings → Dashboards → Add dashboard → New dashboard from scratch.**
+2. Open it, then **Edit → ⋮ → Raw configuration editor** and replace the
+   contents with:
+
+   ```yaml
+   strategy:
+     type: custom:weewx-seasons
+     # all optional:
+     windrose: true        # default true
+     windy:                # omit to hide the Windy.com map
+       lat: 46.95
+       lon: 9.78
+   ```
+
+It creates one view per configured station and adapts automatically when you
+add or remove stations. If a new dashboard shows "no station entities", reload
+your browser (the strategy module is cached) and confirm the integration is set
+up.
+
+### Option B — copy the YAML (full control)
+
+Prefer to tweak the layout yourself? [`dashboard.yaml`](dashboard.yaml) contains
+the same dashboard as a plain view (it additionally uses
+[`layout-card`](https://github.com/thomasloven/lovelace-layout-card) for a fixed
+grid). Open your dashboard's **Raw configuration editor**, paste it into the
+`views:` list, then:
 
 - Replace every `pany` in the entity IDs with your own station's slug — the
   device name you chose during setup, lower-cased with spaces replaced by
@@ -119,7 +142,8 @@ view from `dashboard.yaml` into the `views:` list. Then:
 > wind gust, solar/UV, rain *rate*, …). This integration scrapes only the
 > values the Seasons current-conditions widget shows, so those extra panels are
 > omitted. Wind speed and its windrose buckets are in **m/s** (this
-> integration's unit), not MPH.
+> integration's unit), not MPH. The wind-direction axis and windrose use the
+> `Wind bearing` sensor, which the integration provides directly.
 
 ## How it works
 
