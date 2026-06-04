@@ -148,11 +148,24 @@ cards:
     graph_span: 1d
     all_series_config:
       stroke_width: 2
+    yaxis:
+      - id: rain
+        min: 0
+      - id: rate
+        min: 0
+        opposite: true
     series:
       - entity: sensor.pany_rain_today
         name: Daily accumulation
         type: area
+        yaxis_id: rain
         opacity: 0.3
+        show:
+          extremas: max
+      - entity: sensor.pany_rain_rate
+        name: Rate
+        type: line
+        yaxis_id: rate
         show:
           extremas: max
 

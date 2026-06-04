@@ -58,6 +58,7 @@ const KEYS = {
   windSpeed: "wind_speed",
   windBearing: "wind_bearing",
   rain: "rain_today",
+  rainRate: "rain_rate",
   stationTime: "station_time",
 };
 
@@ -287,16 +288,33 @@ function pressureHumidityCard({ m, sources, baseName, hass }) {
 }
 
 function rainCard({ m }) {
-  if (!m[KEYS.rain]) return null;
-  return apex("Rain today", "1d", [
-    {
+  if (!m[KEYS.rain] && !m[KEYS.rainRate]) return null;
+  const series = [];
+  const yaxis = [];
+  if (m[KEYS.rain]) {
+    series.push({
       entity: m[KEYS.rain],
       name: "Daily accumulation",
       type: "area",
+      yaxis_id: "rain",
       opacity: 0.3,
       show: { extremas: "max" },
-    },
-  ]);
+    });
+    yaxis.push({ id: "rain", min: 0 });
+  }
+  // Rain rate (mm/h) is an instantaneous value on its own axis, drawn as a line
+  // over the cumulative area so both read off the same chart.
+  if (m[KEYS.rainRate]) {
+    series.push({
+      entity: m[KEYS.rainRate],
+      name: "Rate",
+      type: "line",
+      yaxis_id: "rate",
+      show: { extremas: "max" },
+    });
+    yaxis.push({ id: "rate", min: 0, opposite: true });
+  }
+  return apex("Rain today", "1d", series, { yaxis });
 }
 
 function windyCard({ lat, lon }) {
