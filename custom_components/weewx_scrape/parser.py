@@ -28,6 +28,7 @@ SENSOR_ALIASES: dict[str, tuple[str, ...]] = {
     "pressure": ("luftdruck", "barometer", "pressure"),
     "wind_speed": ("wind",),
     "rain_today": ("regen heute", "rain today", "rain"),
+    "rain_rate": ("regen-rate", "regenrate", "regen rate", "rain rate"),
 }
 
 # Measurements the parser *derives* from a scraped value's extras rather than

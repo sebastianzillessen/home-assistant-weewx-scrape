@@ -42,6 +42,7 @@
       "wind_speed": { "name": "Windgeschwindigkeit" },
       "wind_bearing": { "name": "Windrichtung" },
       "rain_today": { "name": "Regen heute" },
+      "rain_rate": { "name": "Regenrate" },
       "pressure_trend": { "name": "Luftdrucktendenz" },
       "station_time": { "name": "Aufnahmezeitpunkt der Station" }
     }

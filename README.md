@@ -26,6 +26,7 @@ entities:
 | Wind speed | wind speed | m/s | `direction` attribute (e.g. `WNW`) |
 | Wind bearing | – | ° | wind direction in degrees (0–360): the exact value in parentheses (`(292°)`) when shown, else mapped from the cardinal |
 | Rain today | precipitation | mm | `state_class: total_increasing` |
+| Rain rate | precipitation intensity | mm/h | current rainfall rate (the page's "Regen-Rate"/"Rain rate") |
 | Station reading time | timestamp | – | the station's own "data as of" time |
 
 **Wind bearing** and **Pressure trend** are numeric counterparts to the

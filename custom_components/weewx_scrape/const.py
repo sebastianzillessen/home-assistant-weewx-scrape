@@ -16,6 +16,7 @@ from homeassistant.const import (
     UnitOfPressure,
     UnitOfSpeed,
     UnitOfTemperature,
+    UnitOfVolumetricFlux,
 )
 
 from .parser import DERIVED_KEYS, SENSOR_ALIASES
@@ -84,6 +85,13 @@ SENSORS: tuple[WeewxSensorDescription, ...] = (
         device_class=SensorDeviceClass.PRECIPITATION,
         native_unit_of_measurement=UnitOfPrecipitationDepth.MILLIMETERS,
         state_class=SensorStateClass.TOTAL_INCREASING,
+    ),
+    WeewxSensorDescription(
+        key="rain_rate",
+        translation_key="rain_rate",
+        device_class=SensorDeviceClass.PRECIPITATION_INTENSITY,
+        native_unit_of_measurement=UnitOfVolumetricFlux.MILLIMETERS_PER_HOUR,
+        state_class=SensorStateClass.MEASUREMENT,
     ),
     # Derived from the wind row's cardinal direction. No state_class: averaging a
     # circular bearing across 0°/360° would produce misleading statistics.

@@ -34,6 +34,19 @@ def test_parse_core_values() -> None:
     assert data["pressure"] == 1011.0
     assert data["wind_speed"] == 0.0
     assert data["rain_today"] == 0.0
+    assert data["rain_rate"] == 0.0
+
+
+def test_rain_rate_english_label() -> None:
+    # "Rain Rate" with a "mm/h" unit -> the numeric rate, distinct from "Rain".
+    html = (
+        "<div id='current_widget'><table>"
+        '<tr><td class="label">Rain Rate</td>'
+        '<td class="data">1.2 mm/h</td></tr>'
+        "</table></div>"
+    )
+    data = parser.parse_current_conditions(html)
+    assert data["rain_rate"] == 1.2
 
 
 def test_pressure_picks_value_not_trend() -> None:
