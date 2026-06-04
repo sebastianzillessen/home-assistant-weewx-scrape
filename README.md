@@ -185,6 +185,23 @@ Per source:
   labelled from the entity's `*_unit` attributes, since attributes carry no unit
   of their own. Override a wind series' label with `wind_speed_unit` if needed.
 
+> **Tip — nicer than `entity[attribute]`:** the companion integration
+> [**Weather to Sensors**](https://github.com/sebastianzillessen/home-assistant-weather-to-sensors)
+> turns a `weather.*` entity's attributes into real `sensor.*` entities with the
+> correct `unit_of_measurement` and `device_class`. Point a source at those
+> sensors instead of `weather.forecast_pany[temperature]` and you get proper
+> units and history everywhere — not just in this dashboard. For example:
+>
+> ```yaml
+>     - name: Met.no
+>       temperature: sensor.met_no_temperature
+>       humidity: sensor.met_no_humidity
+>       pressure: sensor.met_no_pressure
+>       wind_speed: sensor.met_no_wind_speed
+>       wind_bearing: sensor.met_no_wind_bearing
+>       forecast: weather.forecast_pany
+> ```
+
 ### Option B — copy the YAML (full control)
 
 Prefer to tweak the layout yourself? [`dashboard.yaml`](dashboard.yaml) contains
