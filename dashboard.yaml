@@ -10,7 +10,7 @@
 #   • layout-card       https://github.com/thomasloven/lovelace-layout-card   (provides custom:grid-layout)
 #   • plotly-graph-card https://github.com/dbuezas/lovelace-plotly-graph-card (provides custom:plotly-graph)
 #
-# The Wind chart's direction axis and the windrose use `sensor.pany_wind_bearing`
+# The Wind chart's direction axis and the windrose use `sensor.pany_wetterstation_wind_bearing`
 # (wind direction in degrees), which the integration provides directly — no
 # template sensors or extra setup required.
 #
@@ -18,9 +18,10 @@
 #   1. Dashboard → top-right menu → "Edit dashboard" → top-right menu →
 #      "Raw configuration editor".
 #   2. Paste this view into the `views:` list.
-#   3. Replace every `pany` in the entity IDs with your station's slug — the
-#      device name from setup, lower-cased with spaces as underscores
-#      (e.g. "Pany" → `sensor.pany_outdoor_temperature`). The exact IDs are
+#   3. Replace every `pany_wetterstation` in the entity IDs with your station's
+#      slug — the device name from setup, lower-cased with spaces as underscores
+#      (e.g. "Pany Wetterstation" → `sensor.pany_wetterstation_outdoor_temperature`).
+#      The exact IDs are
 #      under Settings → Devices & Services → WeeWX Seasons (scrape) → device.
 #   4. Set the Windy iframe `lat`/`lon` to your station's location.
 
@@ -60,7 +61,7 @@ cards:
     all_series_config:
       stroke_width: 2
     series:
-      - entity: sensor.pany_outdoor_temperature
+      - entity: sensor.pany_wetterstation_outdoor_temperature
         name: Temperature
         show:
           extremas: true
@@ -91,7 +92,7 @@ cards:
             formatter: >
               EVAL:function(val) { const c = {0:"N",90:"E",180:"S",270:"W",360:"N"}; return c[val] || ""; }
     series:
-      - entity: sensor.pany_wind_speed
+      - entity: sensor.pany_wetterstation_wind_speed
         name: Speed
         type: line
         yaxis_id: speed
@@ -99,7 +100,7 @@ cards:
           extremas: max
         group_by:
           func: avg
-      - entity: sensor.pany_wind_bearing
+      - entity: sensor.pany_wetterstation_wind_bearing
         name: Direction
         type: line
         yaxis_id: direction
@@ -129,10 +130,10 @@ cards:
         decimals: 0
         opposite: true
     series:
-      - entity: sensor.pany_pressure
+      - entity: sensor.pany_wetterstation_pressure
         name: Pressure
         yaxis_id: pressure
-      - entity: sensor.pany_humidity
+      - entity: sensor.pany_wetterstation_humidity
         name: Humidity
         yaxis_id: humidity
 
@@ -155,14 +156,14 @@ cards:
         min: 0
         opposite: true
     series:
-      - entity: sensor.pany_rain_today
+      - entity: sensor.pany_wetterstation_rain_today
         name: Daily accumulation
         type: area
         yaxis_id: rain
         opacity: 0.3
         show:
           extremas: max
-      - entity: sensor.pany_rain_rate
+      - entity: sensor.pany_wetterstation_rain_rate
         name: Rate
         type: line
         yaxis_id: rate
@@ -179,7 +180,7 @@ cards:
       https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=%C2%B0C&metricWind=m%2Fs&zoom=9&overlay=wind&product=ecmwf&level=surface&lat=46.95&lon=9.78&detailLat=46.95&detailLon=9.78
 
   # ── Windrose (last 24h) ─────────────────────────────────────────────────────
-  # Uses `sensor.pany_wind_bearing` (degrees). Speed buckets are in m/s to match
+  # Uses `sensor.pany_wetterstation_wind_bearing` (degrees). Speed buckets are in m/s to match
   # this integration's wind speed unit.
   - type: custom:plotly-graph
     view_layout:
@@ -252,13 +253,13 @@ cards:
       entity:
         hovertemplate: '%{theta} %{r:.2f}%'
     entities:
-      - entity: sensor.pany_wind_bearing
+      - entity: sensor.pany_wetterstation_wind_bearing
         internal: true
         filters:
           - resample: 5m
           - map_y: parseFloat(y)
         dn: $fn ({ ys, vars }) => { vars.windDirections = ys }
-      - entity: sensor.pany_wind_speed
+      - entity: sensor.pany_wetterstation_wind_speed
         internal: true
         filters:
           - resample: 5m
