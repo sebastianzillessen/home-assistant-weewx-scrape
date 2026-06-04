@@ -24,15 +24,21 @@ entities:
 | Pressure | atmospheric pressure | hPa | `trend` attribute (e.g. `-1.0`) |
 | Pressure trend | – | hPa | the parenthesised change, as a number (e.g. `-1.0`) |
 | Wind speed | wind speed | m/s | `direction` attribute (e.g. `WNW`) |
-| Wind bearing | – | ° | wind direction in degrees (0–360), derived from the cardinal direction |
+| Wind bearing | – | ° | wind direction in degrees (0–360): the exact value in parentheses (`(292°)`) when shown, else mapped from the cardinal |
 | Rain today | precipitation | mm | `state_class: total_increasing` |
 | Station reading time | timestamp | – | the station's own "data as of" time |
 
 **Wind bearing** and **Pressure trend** are numeric counterparts to the
 `direction`/`trend` attributes, so cards that need a plottable number (a wind
 direction axis, a windrose, a trend graph) can use them directly. Wind bearing
-maps the station's cardinal abbreviation (English `WNW` or German `WNW`/`NNO`/…)
-to degrees; it is unavailable when the wind is calm and no direction is shown.
+prefers the exact degrees the page prints in parentheses (e.g. `0.4 m/s WNW
+(292°)`) and otherwise maps the cardinal abbreviation (English `WNW`, German
+`WNW`/`NNO`/…); it is unavailable when the wind is calm and no direction is shown.
+
+If the page lists the station's coordinates (e.g. `46° 55.96' N` / `009° 45.06'
+O`), they are exposed as **`latitude`/`longitude` attributes on the Station
+reading time sensor** — the dashboard strategy uses them to centre the Windy.com
+map automatically.
 
 The **Station reading time** sensor exposes the timestamp printed on the page
 (its `lastupdate` line) as a proper `timestamp` entity, so dashboards can show
@@ -117,9 +123,12 @@ edit.
      type: custom:weewx-seasons
      # all optional:
      windrose: true        # default true
-     windy:                # omit to hide the Windy.com map
-       lat: 46.95
-       lon: 9.78
+     # Windy.com map: shown automatically using the station's scraped
+     # coordinates when available. Override or set explicitly with:
+     # windy:
+     #   lat: 46.95
+     #   lon: 9.78
+     # …or hide it entirely with:  windy: false
    ```
 
 It creates one view per configured station and adapts automatically when you

@@ -40,6 +40,8 @@ DERIVED_KEYS: tuple[str, ...] = ("wind_bearing", "pressure_trend")
 ATTR_WIND_DIRECTION = "wind_direction"
 ATTR_PRESSURE_TREND = "pressure_trend"
 ATTR_STATION_TIME = "station_time"
+ATTR_LATITUDE = "latitude"
+ATTR_LONGITUDE = "longitude"
 
 _ALIAS_TO_KEY: dict[str, str] = {
     alias: key for key, aliases in SENSOR_ALIASES.items() for alias in aliases
@@ -80,7 +82,16 @@ _LASTUPDATE_RE = re.compile(r'class="lastupdate"[^>]*>(.*?)</p>', re.IGNORECASE 
 _TAG_RE = re.compile(r"<[^>]+>")
 _NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?")
 _WIND_DIR_RE = re.compile(r"m/s\s+([^\s(]+)", re.IGNORECASE)
+# Wind bearing in degrees, printed in parentheses after the cardinal, e.g.
+# "0.4 m/s WNW (292°)". The degree sign is optional.
+_WIND_BEARING_RE = re.compile(r"\(\s*(\d{1,3}(?:\.\d+)?)\s*°?\s*\)")
 _TREND_RE = re.compile(r"\(\s*([-+]?\d+(?:\.\d+)?)\s*\)")
+# A station coordinate in "degrees decimal-minutes" form, e.g. "46° 55.96' N" or
+# "009° 45.06' O" (German "O" = Ost = East). Hemisphere disambiguates lat/lon.
+_COORD_RE = re.compile(
+    r"(\d{1,3})\s*°\s*(\d{1,2}(?:[.,]\d+)?)\s*['′]\s*([NSEWO])",
+    re.IGNORECASE,
+)
 # A "DD/MM/YY HH:MM[:SS]" stamp inside the lastupdate text. Separator may be
 # "/" or "."; year may be 2- or 4-digit; seconds optional.
 _STATION_DT_RE = re.compile(
@@ -124,11 +135,38 @@ def _wind_direction(text: str) -> str | None:
     return None if direction.upper() in ("N/A", "---", "") else direction
 
 
+def _wind_bearing_degrees(text: str) -> float | None:
+    """Read the exact wind bearing (degrees) from the parenthesised value."""
+    match = _WIND_BEARING_RE.search(text)
+    return float(match.group(1)) if match else None
+
+
 def _wind_bearing(direction: str | None) -> float | None:
     """Map a cardinal wind-direction abbreviation to degrees (0–360)."""
     if direction is None:
         return None
     return _CARDINAL_TO_DEGREES.get(direction.upper())
+
+
+def parse_location(page: str) -> tuple[float | None, float | None]:
+    """Extract the station's decimal latitude/longitude, if shown on the page.
+
+    Recognises the Seasons "degrees decimal-minutes" format, e.g.
+    ``46° 55.96' N`` / ``009° 45.06' O`` (German ``O`` = East). The first
+    N/S match is taken as latitude and the first E/W/O as longitude. Returns
+    ``(None, None)`` when no coordinates are found.
+    """
+    text = html.unescape(page)
+    lat: float | None = None
+    lon: float | None = None
+    for deg, minutes, hemi in _COORD_RE.findall(text):
+        value = round(int(deg) + float(minutes.replace(",", ".")) / 60, 5)
+        hemi = hemi.upper()
+        if hemi in ("N", "S") and lat is None:
+            lat = value if hemi == "N" else -value
+        elif hemi in ("E", "W", "O") and lon is None:
+            lon = value if hemi in ("E", "O") else -value
+    return lat, lon
 
 
 def _pressure_trend(text: str) -> float | None:
@@ -191,7 +229,12 @@ def parse_current_conditions(page: str) -> dict:
         if key == "wind_speed":
             direction = _wind_direction(value)
             attrs[ATTR_WIND_DIRECTION] = direction
-            data["wind_bearing"] = _wind_bearing(direction)
+            # Prefer the exact degrees printed in parentheses ("(292°)"); fall
+            # back to the 16-point cardinal mapping when they are absent.
+            bearing = _wind_bearing_degrees(value)
+            data["wind_bearing"] = (
+                bearing if bearing is not None else _wind_bearing(direction)
+            )
         elif key == "pressure":
             trend = _pressure_trend(value)
             attrs[ATTR_PRESSURE_TREND] = trend
@@ -205,6 +248,12 @@ def parse_current_conditions(page: str) -> dict:
     if updates:
         # The last "lastupdate" paragraph holds the observation timestamp.
         attrs[ATTR_STATION_TIME] = updates[-1]
+
+    latitude, longitude = parse_location(page)
+    if latitude is not None:
+        attrs[ATTR_LATITUDE] = latitude
+    if longitude is not None:
+        attrs[ATTR_LONGITUDE] = longitude
 
     data["_attrs"] = attrs
     return data

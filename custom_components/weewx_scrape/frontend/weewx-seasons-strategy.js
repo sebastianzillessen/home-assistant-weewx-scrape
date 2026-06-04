@@ -16,9 +16,8 @@
  *     type: custom:weewx-seasons
  *     # all optional:
  *     windrose: true          # default true; needs plotly-graph-card
- *     windy:                  # omitted -> no Windy map
- *       lat: 46.95
- *       lon: 9.78
+ *     # Windy map: auto-centred on the station's scraped coordinates when
+ *     # available. Override with `windy: {lat, lon}` or hide with `windy: false`.
  *
  * The charts use apexcharts-card, and the windrose uses plotly-graph-card —
  * install both from HACS → Frontend. Missing cards simply render as an error
@@ -293,6 +292,18 @@ function buildStationView(title, m, config) {
   };
 }
 
+// Resolve the Windy map config: explicit `windy` wins; otherwise fall back to
+// the station coordinates the integration scrapes (exposed as attributes on the
+// station-time sensor). `windy: false` disables the map.
+function resolveWindy(config, hass, m) {
+  if (config.windy !== undefined) return config.windy;
+  const stationTime = m[KEYS.stationTime] && hass.states?.[m[KEYS.stationTime]];
+  const lat = stationTime?.attributes?.latitude;
+  const lon = stationTime?.attributes?.longitude;
+  if (lat != null && lon != null) return { lat, lon };
+  return undefined;
+}
+
 class WeewxSeasonsDashboardStrategy {
   static async generate(config, hass) {
     const groups = entitiesByDevice(hass);
@@ -300,7 +311,8 @@ class WeewxSeasonsDashboardStrategy {
     for (const [deviceId, m] of groups) {
       const device = (hass.devices || {})[deviceId];
       const title = device?.name_by_user || device?.name || "WeeWX";
-      const view = buildStationView(title, m, config);
+      const windy = resolveWindy(config, hass, m);
+      const view = buildStationView(title, m, { ...config, windy });
       if (view.cards.length) views.push(view);
     }
     if (!views.length) {
