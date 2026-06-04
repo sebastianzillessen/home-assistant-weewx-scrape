@@ -14,7 +14,7 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import WeewxScrapeCoordinator
-from .frontend import async_register_strategy
+from .dashboard import async_register_strategy
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
