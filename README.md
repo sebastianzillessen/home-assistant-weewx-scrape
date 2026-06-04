@@ -136,6 +136,52 @@ add or remove stations. If a new dashboard shows "no station entities", reload
 your browser (the strategy module is cached) and confirm the integration is set
 up.
 
+#### Comparing additional sources
+
+The scraped station is always shown. You can overlay **additional weather
+sources** to compare them — they appear as extra, legend-toggleable series in
+the charts, and any source that exposes a forecast gets a card on a separate
+**Forecast** tab.
+
+```yaml
+strategy:
+  type: custom:weewx-seasons
+  base_name: WeeWX            # legend label for the scraped series
+  sources:
+    # A source built from individual sensor entities (e.g. MeteoSwiss):
+    - name: MeteoSwiss
+      temperature: sensor.meteoswiss_at_7243_srs_temperature_at_7243
+      humidity: sensor.meteoswiss_at_7243_srs_relative_humidity_at_7243
+      pressure: sensor.meteoswiss_at_7243_srs_air_pressure_sea_level_qff_at_7243
+      wind_speed: sensor.meteoswiss_at_7243_srs_wind_speed_at_7243
+      wind_speed_unit: km/h   # normalised to m/s (default: km/h)
+      wind_bearing: sensor.meteoswiss_at_7243_srs_wind_direction_at_7243
+      forecast: weather.meteoswiss_at_7243_srs_weather_at_7243
+
+    # A source built from a weather entity's attributes (e.g. Met.no), using
+    # the explicit "entity[attribute]" reference syntax:
+    - name: Met.no
+      temperature: weather.forecast_pany[temperature]
+      humidity: weather.forecast_pany[humidity]
+      pressure: weather.forecast_pany[pressure]
+      wind_speed: weather.forecast_pany[wind_speed]
+      wind_bearing: weather.forecast_pany[wind_bearing]
+      forecast: weather.forecast_pany
+      # Shorthand: `weather: weather.forecast_pany` maps the five roles above
+      # from that weather entity's attributes automatically.
+```
+
+Per source:
+
+- Each role (`temperature`, `humidity`, `pressure`, `wind_speed`, `wind_bearing`)
+  accepts **either** a sensor entity id **or** an `entity[attribute]` reference
+  (read a value from any entity's attribute — handy for `weather.*` entities).
+- `weather: <weather entity>` is a shorthand that maps those five roles from the
+  entity's attributes.
+- `forecast: <weather entity>` adds a forecast card to the **Forecast** tab.
+- Wind speed is normalised to **m/s**; set `wind_speed_unit` (`km/h` default,
+  `m/s`, `mph`, `kn`) per source so the curves share one axis.
+
 ### Option B — copy the YAML (full control)
 
 Prefer to tweak the layout yourself? [`dashboard.yaml`](dashboard.yaml) contains
