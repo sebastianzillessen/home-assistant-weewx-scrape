@@ -8,6 +8,8 @@ for context.
 - New sensors: wind bearing (°), pressure trend; station coordinates → auto Windy map.
 - Multi-source comparison (overlays + Forecast tab), `entity[attribute]` syntax,
   missing-entity guard, unit auto-detection for weather attributes.
+- Per-source line style (`style`/`dash`, overlays dotted by default) and a
+  top-of-view toggle bar to show/hide a whole provider across every chart.
 - Fixes: config-flow update interval, `frontend.py` → `dashboard.py` rename.
 - Releases: `v0.0.3` (stable), `v0.0.4` + `v0.0.5` (pre-release).
 - Dashboard screenshot in README.

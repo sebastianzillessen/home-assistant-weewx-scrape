@@ -28,19 +28,23 @@
  *         wind_bearing: sensor.meteoswiss_at_7243_srs_wind_direction_at_7243
  *         forecast: weather.meteoswiss_at_7243_srs_weather_at_7243
  *       - name: Met.no
- *         temperature: weather.forecast_pany[temperature]   # entity[attribute]
- *         humidity: weather.forecast_pany[humidity]
- *         pressure: weather.forecast_pany[pressure]
- *         wind_speed: weather.forecast_pany[wind_speed]
- *         wind_bearing: weather.forecast_pany[wind_bearing]
+ *         weather: weather.forecast_pany   # shorthand for the 5 roles below
  *         forecast: weather.forecast_pany
- *         # shorthand equivalent for the five roles above:
- *         #   weather: weather.forecast_pany
+ *         style: dotted          # line style for this source's overlays:
+ *                                # solid | dashed | dotted (default dotted),
+ *                                # or `dash: <px>` for an explicit dash length
  *
  * Each source role accepts a sensor entity id, or an "entity[attribute]"
  * reference to read a value from an entity attribute (e.g. a weather entity).
- * Source overlays appear as extra, legend-toggleable series in the charts; any
- * source with a `forecast`/`weather` entity also gets a card on a "Forecast" tab.
+ * Source overlays appear as extra, legend-toggleable series in the charts and
+ * are drawn dotted by default so they read as secondary to the scraped station;
+ * any source with a `forecast`/`weather` entity also gets a card on a
+ * "Forecast" tab.
+ *
+ * When at least one comparison source is configured, a toggle bar is shown at
+ * the top of each station view with one chip per provider (the scraped station
+ * plus every source). Clicking a chip shows/hides all of that provider's series
+ * across every chart on the view at once; the choice is remembered per station.
  *
  * The charts use apexcharts-card, and the windrose uses plotly-graph-card —
  * install both from HACS → Frontend. Missing cards simply render as an error
@@ -173,21 +177,53 @@ function sourceHas(source, role, hass) {
   return Boolean(sourceSeries(source, role, hass));
 }
 
+// Resolve a source's line style into an apexcharts dashArray value (px). Source
+// overlays default to a dotted line so they read as "secondary" against the
+// scraped station's solid line; override per source with `style: solid|dashed|
+// dotted` or an explicit `dash: <number>`.
+function sourceDash(source) {
+  if (typeof source.dash === "number") return source.dash;
+  switch (String(source.style || source.line_style || "dotted").toLowerCase()) {
+    case "solid":
+      return 0;
+    case "dashed":
+      return 6;
+    case "dotted":
+    default:
+      return 2;
+  }
+}
+
 function addSourceSeries(series, sources, role, hass, opts = {}) {
   for (const source of sources) {
     const built = sourceSeries(source, role, hass, opts);
-    if (built) series.push(built);
+    if (built) {
+      // Internal hint consumed by apex(); kept off the emitted series config.
+      built._dash = sourceDash(source);
+      series.push(built);
+    }
   }
 }
 
 function apex(title, graphSpan, series, extra = {}) {
+  // Pull the internal `_dash` hint off each series and turn it into a per-series
+  // apexcharts stroke.dashArray (index-aligned with `series`). 0 = solid.
+  const cleaned = series.map(({ _dash, ...rest }) => rest);
+  const dashArray = series.map((s) => s._dash || 0);
+  const { all_series_config: allSeries, apex_config: extraApex, ...restExtra } =
+    extra;
+  const apexConfig = { ...(extraApex || {}) };
+  if (dashArray.some((d) => d)) {
+    apexConfig.stroke = { ...(apexConfig.stroke || {}), dashArray };
+  }
   return {
     type: "custom:apexcharts-card",
     header: { show: true, title, show_states: true, colorize_states: true },
     graph_span: graphSpan,
-    all_series_config: { stroke_width: 2 },
-    series,
-    ...extra,
+    all_series_config: allSeries || { stroke_width: 2 },
+    series: cleaned,
+    ...(Object.keys(apexConfig).length ? { apex_config: apexConfig } : {}),
+    ...restExtra,
   };
 }
 
@@ -443,6 +479,10 @@ function buildStationView(title, slug, m, config, hass) {
     pressureHumidityCard(ctx),
     rainCard(ctx),
   ].filter(Boolean);
+  // A toggle bar (when there are comparison sources) to show/hide each
+  // provider's series across every chart on the view; placed at the very top.
+  const toggles = cards.length ? sourceToggleCard({ ...ctx, slug }) : null;
+  if (toggles) cards.unshift(toggles);
   if (config.windy && config.windy.lat != null && config.windy.lon != null) {
     cards.push(windyCard(config.windy));
   }
@@ -488,6 +528,162 @@ function resolveWindy(config, hass, m) {
   const lon = stationTime?.attributes?.longitude;
   if (lat != null && lon != null) return { lat, lon };
   return undefined;
+}
+
+// --- Source toggle bar ----------------------------------------------------
+// A small toolbar placed at the top of a station view with one chip per series
+// "group" (the scraped station plus each comparison source). Toggling a chip
+// shows/hides every series of that group across all apexcharts cards on the
+// view at once — e.g. hide Met.no everywhere with a single click. Series are
+// matched by name: the group name itself, or the group name followed by a
+// suffix (e.g. "Met.no", "Met.no P", "Met.no dir").
+const TOGGLE_TAG = "weewx-source-toggles";
+
+// Collect every <apexcharts-card> on the page, descending through shadow roots.
+// Home Assistant only mounts the active view, so this is effectively scoped to
+// the view the toggle bar lives on.
+function collectApexCharts(root = document.body, acc = []) {
+  const visit = (node) => {
+    if (!node || node.nodeType !== 1) return;
+    if (node.tagName === "APEXCHARTS-CARD") acc.push(node);
+    if (node.shadowRoot) node.shadowRoot.childNodes.forEach(visit);
+    node.childNodes.forEach(visit);
+  };
+  visit(root);
+  return acc;
+}
+
+// Show or hide every series belonging to `group` across the given apex cards.
+function applyGroupVisibility(charts, group, hidden) {
+  const matches = (name) => name === group || name.startsWith(`${group} `);
+  for (const card of charts) {
+    const chart = card._apexChart;
+    const names = chart?.w?.globals?.seriesNames;
+    if (!names) continue;
+    for (const name of names) {
+      if (!matches(name)) continue;
+      try {
+        if (hidden) chart.hideSeries(name);
+        else chart.showSeries(name);
+      } catch (e) {
+        /* series not toggleable yet — ignore */
+      }
+    }
+  }
+}
+
+class WeewxSourceToggles extends HTMLElement {
+  setConfig(config) {
+    this._groups = Array.isArray(config.groups) ? config.groups : [];
+    this._key = `weewx-source-toggles:${config.storage_key || location.pathname}`;
+    this._hidden = this._load();
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    // Re-apply persisted "hidden" groups once charts have had a chance to render.
+    if (!this._applied) {
+      this._applied = true;
+      this._reapplyHidden();
+    }
+  }
+
+  _load() {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(this._key) || "[]"));
+    } catch (e) {
+      return new Set();
+    }
+  }
+
+  _save() {
+    try {
+      localStorage.setItem(this._key, JSON.stringify([...this._hidden]));
+    } catch (e) {
+      /* storage unavailable — toggles still work for the session */
+    }
+  }
+
+  // Charts can render after this card; retry applying the hidden state a few
+  // times so a reload restores the previous selection.
+  _reapplyHidden() {
+    if (!this._hidden.size) return;
+    let tries = 0;
+    const tick = () => {
+      const charts = collectApexCharts();
+      for (const g of this._hidden) applyGroupVisibility(charts, g, true);
+      if (++tries < 6) setTimeout(tick, 500);
+    };
+    setTimeout(tick, 250);
+  }
+
+  _toggle(group) {
+    const hidden = !this._hidden.has(group);
+    if (hidden) this._hidden.add(group);
+    else this._hidden.delete(group);
+    this._save();
+    applyGroupVisibility(collectApexCharts(), group, hidden);
+    this._render();
+  }
+
+  _render() {
+    if (!this._root) this._root = this.attachShadow({ mode: "open" });
+    const chips = this._groups
+      .map((g) => {
+        const off = this._hidden.has(g);
+        return `<button class="chip${off ? " off" : ""}" type="button" data-g="${encodeURIComponent(
+          g
+        )}" aria-pressed="${!off}"><span class="dot"></span>${g}</button>`;
+      })
+      .join("");
+    this._root.innerHTML = `
+      <style>
+        .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+               padding: 10px 12px; }
+        .label { color: var(--secondary-text-color); font-size: 0.9em;
+                 margin-right: 2px; }
+        .chip { display: inline-flex; align-items: center; gap: 6px;
+                border: 1px solid var(--divider-color, #444);
+                background: var(--card-background-color, transparent);
+                color: var(--primary-text-color); border-radius: 16px;
+                padding: 4px 12px; font-size: 0.9em; cursor: pointer;
+                line-height: 1.4; }
+        .chip .dot { width: 9px; height: 9px; border-radius: 50%;
+                     background: var(--primary-color); }
+        .chip.off { opacity: 0.45; text-decoration: line-through; }
+        .chip.off .dot { background: var(--disabled-text-color, #888); }
+      </style>
+      <ha-card><div class="bar"><span class="label">Sources:</span>${chips}</div></ha-card>`;
+    this._root.querySelectorAll(".chip").forEach((el) => {
+      el.addEventListener("click", () =>
+        this._toggle(decodeURIComponent(el.dataset.g))
+      );
+    });
+  }
+
+  getCardSize() {
+    return 1;
+  }
+}
+
+if (!customElements.get(TOGGLE_TAG)) {
+  customElements.define(TOGGLE_TAG, WeewxSourceToggles);
+}
+
+// Build the toggle bar for a view: the scraped station plus every source that
+// contributes at least one series. Returns null when there is nothing to
+// compare (no sources), so single-station dashboards stay uncluttered.
+function sourceToggleCard({ baseName, sources, slug, hass }) {
+  const roles = ["temperature", "humidity", "pressure", "wind_speed", "wind_bearing"];
+  const groups = [baseName];
+  for (const source of sources) {
+    if (source.name && roles.some((r) => sourceHas(source, r, hass))) {
+      groups.push(source.name);
+    }
+  }
+  if (groups.length < 2) return null;
+  return { type: `custom:${TOGGLE_TAG}`, groups, storage_key: slug };
 }
 
 class WeewxSeasonsDashboardStrategy {

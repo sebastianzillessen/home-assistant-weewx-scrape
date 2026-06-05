@@ -142,7 +142,9 @@ up.
 The scraped station is always shown. You can overlay **additional weather
 sources** to compare them — they appear as extra, legend-toggleable series in
 the charts, and any source that exposes a forecast gets a card on a separate
-**Forecast** tab.
+**Forecast** tab. Overlays are drawn **dotted** by default so they read as
+secondary to the scraped station, and a **toggle bar** at the top of each view
+lets you show/hide a whole provider across every chart at once (see below).
 
 ```yaml
 strategy:
@@ -181,10 +183,22 @@ Per source:
 - `weather: <weather entity>` is a shorthand that maps those five roles from the
   entity's attributes.
 - `forecast: <weather entity>` adds a forecast card to the **Forecast** tab.
+- `style: solid | dashed | dotted` sets the source's line style (default
+  `dotted`); or give an explicit dash length with `dash: <px>` (`0` = solid).
 - Units follow Home Assistant's unit system (all series share your display
   unit — no forced conversion). Values read from a `weather.*` **attribute** are
   labelled from the entity's `*_unit` attributes, since attributes carry no unit
   of their own. Override a wind series' label with `wind_speed_unit` if needed.
+
+#### Show/hide a whole source (toggle bar)
+
+When at least one comparison source is configured, each station view gets a
+**toggle bar** at the top with one chip per provider — the scraped station plus
+every source. Click a chip to show/hide **all** of that provider's series across
+every chart on the view at once (e.g. hide *Met.no* everywhere in one click).
+This is independent of the per-chart legend, and your selection is remembered
+per station (stored in the browser). The toggle bar is hidden on single-source
+dashboards, where there is nothing to compare.
 
 > **Tip — nicer than `entity[attribute]`:** the companion integration
 > [**Weather to Sensors**](https://github.com/sebastianzillessen/home-assistant-weather-to-sensors)
