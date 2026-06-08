@@ -10,6 +10,8 @@ for context.
   missing-entity guard, unit auto-detection for weather attributes.
 - Per-source line style (`style`/`dash`, overlays dotted by default) and a
   top-of-view toggle bar to show/hide a whole provider across every chart.
+- Per-hour rain bars (mm/hour from the daily counter) keeping the mm/h rate line;
+  time-window picker (presets + calendar range, `default_span`) per view.
 - Fixes: config-flow update interval, `frontend.py` → `dashboard.py` rename.
 - Releases: `v0.0.3` (stable), `v0.0.4` + `v0.0.5` (pre-release).
 - Dashboard screenshot in README.
