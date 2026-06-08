@@ -16,6 +16,8 @@
  *     type: custom:weewx-seasons
  *     # all optional:
  *     windrose: true          # default true; needs plotly-graph-card
+ *     default_span: 48h       # initial time window (apexcharts graph_span); a
+ *                             # picker at the top of each view overrides it
  *     # Windy map: auto-centred on the station's scraped coordinates when
  *     # available. Override with `windy: {lat, lon}` or hide with `windy: false`.
  *     base_name: WeeWX        # legend label for the scraped series
@@ -45,6 +47,12 @@
  * the top of each station view with one chip per provider (the scraped station
  * plus every source). Clicking a chip shows/hides all of that provider's series
  * across every chart on the view at once; the choice is remembered per station.
+ *
+ * Every view also has a time-window picker at the top: quick presets
+ * (12h/24h/48h/7d/30d) plus a start–end calendar range. The selection is
+ * remembered per station and reloads the view so the charts fetch exactly that
+ * window. The rain chart shows per-hour rainfall (mm in each hour, as columns)
+ * alongside the instantaneous rain rate (mm/h).
  *
  * The charts use apexcharts-card, and the windrose uses plotly-graph-card —
  * install both from HACS → Frontend. Missing cards simply render as an error
@@ -227,7 +235,7 @@ function apex(title, graphSpan, series, extra = {}) {
   };
 }
 
-function temperatureCard({ m, sources, baseName, hass }) {
+function temperatureCard({ m, sources, baseName, hass, graphSpan, spanExtra }) {
   const series = [];
   if (m[KEYS.temperature]) {
     series.push({
@@ -237,10 +245,10 @@ function temperatureCard({ m, sources, baseName, hass }) {
     });
   }
   addSourceSeries(series, sources, "temperature", hass);
-  return series.length ? apex("Temperature", "36h", series) : null;
+  return series.length ? apex("Temperature", graphSpan, series, spanExtra) : null;
 }
 
-function windCard({ m, sources, baseName, hass }) {
+function windCard({ m, sources, baseName, hass, graphSpan, spanExtra }) {
   const series = [];
   const yaxis = [{ id: "speed", min: 0 }];
   if (m[KEYS.windSpeed]) {
@@ -294,10 +302,10 @@ function windCard({ m, sources, baseName, hass }) {
       },
     });
   }
-  return apex("Wind", "36h", series, { yaxis });
+  return apex("Wind", graphSpan, series, { yaxis, ...spanExtra });
 }
 
-function pressureHumidityCard({ m, sources, baseName, hass }) {
+function pressureHumidityCard({ m, sources, baseName, hass, graphSpan, spanExtra }) {
   const series = [];
   const yaxis = [];
   const hasPressure =
@@ -317,29 +325,33 @@ function pressureHumidityCard({ m, sources, baseName, hass }) {
   if (hasHumidity) {
     yaxis.push({ id: "humidity", min: 0, max: 100, decimals: 0, opposite: true });
   }
-  return apex("Pressure & Humidity", "36h", series, {
+  return apex("Pressure & Humidity", graphSpan, series, {
     yaxis,
     all_series_config: { stroke_width: 2, show: { extremas: true } },
+    ...spanExtra,
   });
 }
 
-function rainCard({ m }) {
+function rainCard({ m, graphSpan, spanExtra }) {
   if (!m[KEYS.rain] && !m[KEYS.rainRate]) return null;
   const series = [];
   const yaxis = [];
   if (m[KEYS.rain]) {
+    // Per-hour rainfall: the scraped `rain_today` is a daily-resetting cumulative
+    // total, so the rain that fell within each hour is the increase across that
+    // hour — apexcharts `group_by: diff` over 1h buckets, drawn as columns.
     series.push({
       entity: m[KEYS.rain],
-      name: "Daily accumulation",
-      type: "area",
+      name: "Hourly rain",
+      type: "column",
       yaxis_id: "rain",
-      opacity: 0.3,
+      group_by: { func: "diff", duration: "1h" },
       show: { extremas: "max" },
     });
     yaxis.push({ id: "rain", min: 0 });
   }
   // Rain rate (mm/h) is an instantaneous value on its own axis, drawn as a line
-  // over the cumulative area so both read off the same chart.
+  // over the hourly columns so both read off the same chart.
   if (m[KEYS.rainRate]) {
     series.push({
       entity: m[KEYS.rainRate],
@@ -350,7 +362,7 @@ function rainCard({ m }) {
     });
     yaxis.push({ id: "rate", min: 0, opposite: true });
   }
-  return apex("Rain today", "1d", series, { yaxis });
+  return apex("Rain (hourly)", graphSpan, series, { yaxis, ...spanExtra });
 }
 
 function windyCard({ lat, lon }) {
@@ -464,14 +476,177 @@ function windroseCard(m) {
   };
 }
 
+// --- Time-window picker ---------------------------------------------------
+// A toolbar at the top of each view to choose how far back the charts show:
+// quick presets ("last 24h/48h/…") plus a start–end calendar range. apexcharts
+// only fetches data for its `graph_span`, so changing the window persists the
+// choice and reloads the view, and the strategy reads it back here to set each
+// chart's `graph_span`/`span` when it regenerates.
+const TIME_TAG = "weewx-time-range";
+const TIME_PRESETS = ["12h", "24h", "48h", "7d", "30d"];
+const DAY_MS = 86400000;
+
+function timeStorageKey(slug) {
+  return `${TIME_TAG}:${slug}`;
+}
+
+function loadWindow(slug) {
+  try {
+    const raw = localStorage.getItem(timeStorageKey(slug));
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Translate a stored window into apexcharts-card options. A preset is a plain
+// duration ending "now"; a calendar range is expressed as a day-aligned span
+// ending on (and offset back to) the chosen end date.
+function resolveSpan(win, defaultSpan) {
+  if (win && win.kind === "preset" && win.span) {
+    return { graphSpan: win.span, spanExtra: {} };
+  }
+  if (win && win.kind === "range" && win.start && win.end) {
+    const start = new Date(`${win.start}T00:00:00`);
+    const end = new Date(`${win.end}T00:00:00`);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (!isNaN(start) && !isNaN(end) && end >= start) {
+      const days = Math.round((end - start) / DAY_MS) + 1;
+      const endOffset = Math.round((end - today) / DAY_MS);
+      const span = { end: "day" };
+      if (endOffset !== 0) span.offset = `${endOffset}d`;
+      return { graphSpan: `${days}d`, spanExtra: { span } };
+    }
+  }
+  return { graphSpan: defaultSpan, spanExtra: {} };
+}
+
+function isoDate(d) {
+  return d.toISOString().slice(0, 10);
+}
+
+class WeewxTimeRange extends HTMLElement {
+  setConfig(config) {
+    this._slug = config.slug || "weewx";
+    this._presets = Array.isArray(config.presets) ? config.presets : TIME_PRESETS;
+    this._default = config.default_span || "48h";
+    this._win = config.win || loadWindow(this._slug);
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+  }
+
+  _activePreset() {
+    if (this._win && this._win.kind === "preset") return this._win.span;
+    if (!this._win) return this._default;
+    return null; // a calendar range is active
+  }
+
+  _commit(win) {
+    try {
+      localStorage.setItem(timeStorageKey(this._slug), JSON.stringify(win));
+    } catch (e) {
+      /* ignore — without storage the reload below can't help anyway */
+    }
+    // The strategy reads the window when it regenerates; reload to apply it.
+    location.reload();
+  }
+
+  _render() {
+    if (!this._root) this._root = this.attachShadow({ mode: "open" });
+    const active = this._activePreset();
+    const presetBtns = this._presets
+      .map(
+        (p) =>
+          `<button class="chip${p === active ? " on" : ""}" type="button" data-p="${p}">${p}</button>`
+      )
+      .join("");
+    // Default the calendar inputs to the active range, else the last `default`.
+    let start;
+    let end;
+    if (this._win && this._win.kind === "range") {
+      start = this._win.start;
+      end = this._win.end;
+    } else {
+      const e = new Date();
+      const s = new Date(e.getTime() - 1 * DAY_MS);
+      start = isoDate(s);
+      end = isoDate(e);
+    }
+    const rangeOn = this._win && this._win.kind === "range";
+    this._root.innerHTML = `
+      <style>
+        .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+               padding: 10px 12px; }
+        .label { color: var(--secondary-text-color); font-size: 0.9em; }
+        .chip { border: 1px solid var(--divider-color, #444);
+                background: var(--card-background-color, transparent);
+                color: var(--primary-text-color); border-radius: 16px;
+                padding: 4px 12px; font-size: 0.9em; cursor: pointer; }
+        .chip.on { background: var(--primary-color); color: var(--text-primary-color, #fff);
+                   border-color: var(--primary-color); }
+        .sep { width: 1px; align-self: stretch; background: var(--divider-color, #444);
+               margin: 2px 4px; }
+        input[type=date] { background: var(--card-background-color, transparent);
+                color: var(--primary-text-color);
+                border: 1px solid var(--divider-color, #444); border-radius: 8px;
+                padding: 3px 6px; font-size: 0.9em; color-scheme: dark light; }
+        .apply { border: 1px solid var(--primary-color); color: var(--primary-color);
+                 background: transparent; border-radius: 16px; padding: 4px 12px;
+                 font-size: 0.9em; cursor: pointer; }
+        .apply.on { background: var(--primary-color); color: var(--text-primary-color, #fff); }
+      </style>
+      <ha-card><div class="bar">
+        <span class="label">Window:</span>${presetBtns}
+        <span class="sep"></span>
+        <input type="date" class="from" value="${start}" max="${end}">
+        <span class="label">→</span>
+        <input type="date" class="to" value="${end}">
+        <button class="apply${rangeOn ? " on" : ""}" type="button">Apply range</button>
+      </div></ha-card>`;
+    this._root.querySelectorAll(".chip").forEach((el) =>
+      el.addEventListener("click", () =>
+        this._commit({ kind: "preset", span: el.dataset.p })
+      )
+    );
+    this._root.querySelector(".apply").addEventListener("click", () => {
+      const from = this._root.querySelector(".from").value;
+      const to = this._root.querySelector(".to").value;
+      if (from && to && to >= from) {
+        this._commit({ kind: "range", start: from, end: to });
+      }
+    });
+  }
+
+  getCardSize() {
+    return 1;
+  }
+}
+
+if (!customElements.get(TIME_TAG)) {
+  customElements.define(TIME_TAG, WeewxTimeRange);
+}
+
+function timeRangeCard({ slug, win, defaultSpan }) {
+  return { type: `custom:${TIME_TAG}`, slug, win, default_span: defaultSpan };
+}
+
 // The observations view: scrape charts with optional source overlays, plus the
 // Windy map and windrose (both from the scraped station).
 function buildStationView(title, slug, m, config, hass) {
+  const defaultSpan = config.default_span || "48h";
+  const win = loadWindow(slug);
+  const { graphSpan, spanExtra } = resolveSpan(win, defaultSpan);
   const ctx = {
     m,
     sources: normalizeSources(config),
     baseName: config.base_name || "WeeWX",
     hass,
+    graphSpan,
+    spanExtra,
   };
   const cards = [
     temperatureCard(ctx),
@@ -483,6 +658,12 @@ function buildStationView(title, slug, m, config, hass) {
   // provider's series across every chart on the view; placed at the very top.
   const toggles = cards.length ? sourceToggleCard({ ...ctx, slug }) : null;
   if (toggles) cards.unshift(toggles);
+  // A time-window picker (presets + calendar range) controlling every chart on
+  // the view; placed above everything else.
+  const timeRange = cards.length
+    ? timeRangeCard({ slug, win, defaultSpan })
+    : null;
+  if (timeRange) cards.unshift(timeRange);
   if (config.windy && config.windy.lat != null && config.windy.lon != null) {
     cards.push(windyCard(config.windy));
   }

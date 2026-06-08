@@ -92,8 +92,9 @@ The interval and time zone can be changed later via the integration's
 ## Dashboard
 
 The integration ships a ready-made weather dashboard with charts for
-temperature, wind (speed + direction), pressure & humidity, daily rain, an
-optional Windy.com map and a windrose — modelled on
+temperature, wind (speed + direction), pressure & humidity, per-hour rain, an
+optional Windy.com map and a windrose, plus a time-window picker at the top —
+modelled on
 [this community dashboard](https://gist.github.com/idcrook/51f27869a4ba4cd78d5cf2be8babe70e).
 There are two ways to use it.
 
@@ -124,6 +125,8 @@ edit.
      type: custom:weewx-seasons
      # all optional:
      windrose: true        # default true
+     default_span: 48h     # initial chart window; the picker at the top of
+                           # each view overrides it (presets + calendar range)
      # Windy.com map: shown automatically using the station's scraped
      # coordinates when available. Override or set explicitly with:
      # windy:
@@ -199,6 +202,19 @@ every chart on the view at once (e.g. hide *Met.no* everywhere in one click).
 This is independent of the per-chart legend, and your selection is remembered
 per station (stored in the browser). The toggle bar is hidden on single-source
 dashboards, where there is nothing to compare.
+
+#### Choosing the time window
+
+Each view has a **time-window picker** at the top that controls every chart at
+once: quick presets (**12h / 24h / 48h / 7d / 30d**) plus a start–end **calendar
+range**. The initial window is `default_span` (48h by default). Because
+apexcharts only fetches data for the window it shows, changing the selection
+reloads the view so the charts pull exactly that range; the choice is remembered
+per station. Wider windows (7d/30d) fetch more history and take a touch longer.
+
+The **rain** chart shows **per-hour rainfall** — how many millimetres fell in
+each hour, drawn as columns (derived from the daily `rain_today` counter) —
+alongside the instantaneous **rain rate** (mm/h) on its own axis.
 
 > **Tip — nicer than `entity[attribute]`:** the companion integration
 > [**Weather to Sensors**](https://github.com/sebastianzillessen/home-assistant-weather-to-sensors)
