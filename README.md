@@ -1,6 +1,6 @@
-[![release](https://github.com/sebastianzillessen/home-assistant-weewx-scrape/actions/workflows/release.yml/badge.svg)](https://github.com/sebastianzillessen/home-assistant-weewx-scrape/actions/workflows/release.yml)
-
 # WeeWX Seasons (scrape) — Home Assistant integration
+
+[![tests](https://github.com/sebastianzillessen/home-assistant-weewx-scrape/actions/workflows/tests.yml/badge.svg)](https://github.com/sebastianzillessen/home-assistant-weewx-scrape/actions/workflows/tests.yml) [![Renovate enabled](https://img.shields.io/badge/renovate-enabled-brightgreen.svg)](https://docs.renovatebot.com/)
 
 A Home Assistant custom integration that reads **current weather conditions
 from any [WeeWX](https://weewx.com/) website using the standard "Seasons"

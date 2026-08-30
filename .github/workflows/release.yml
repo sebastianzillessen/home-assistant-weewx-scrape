@@ -12,6 +12,28 @@ on:
         description: "Mark as a pre-release"
         type: boolean
         default: true
+  # Callable so other workflows (see renovate-release.yml) can cut a release
+  # without duplicating the manifest/ZIP logic. A release created with the
+  # default GITHUB_TOKEN does not fire `on: release`, so they cannot rely on
+  # the trigger above.
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release tag to create (e.g. v0.0.4)"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark as a pre-release"
+        type: boolean
+        default: false
+      ref:
+        description: "Git ref to build from (defaults to the triggering ref)"
+        type: string
+        default: ""
+      generate_notes:
+        description: "Let GitHub generate the release notes"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -21,16 +43,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Resolve release metadata
         id: meta
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
-            echo "prerelease=${{ github.event.inputs.prerelease }}" >> "$GITHUB_OUTPUT"
-          else
+          if [ "${{ github.event_name }}" = "release" ]; then
             echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
             echo "prerelease=${{ github.event.release.prerelease }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=${{ inputs.prerelease }}" >> "$GITHUB_OUTPUT"
+            # The tag does not exist yet: create it on the commit we build from.
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Set manifest version to the release tag
@@ -59,5 +85,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
+          target_commitish: ${{ steps.meta.outputs.sha }}
           prerelease: ${{ steps.meta.outputs.prerelease }}
+          generate_release_notes: ${{ inputs.generate_notes || false }}
           files: weewx_scrape.zip
