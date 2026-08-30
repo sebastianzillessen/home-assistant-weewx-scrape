@@ -1,0 +1,68 @@
+name: Renovate patch release
+
+# When a Renovate PR is merged into main, cut a patch release so the HACS ZIP
+# stays in step with the dependency updates. Mirrors the same workflow in the
+# sibling home-assistant-ev-charging-availability repo.
+#
+# Two things differ from that repo and are deliberate:
+#
+#  * The version here is owned by the release tag — release.yml writes it into
+#    manifest.json while building the ZIP and never commits it back — so the
+#    next version is derived from the latest release tag, not from the manifest
+#    in main. Nothing is pushed to main.
+#  * release.yml is invoked directly as a reusable workflow. A release created
+#    with the default GITHUB_TOKEN does not fire `on: release`, so release.yml
+#    would not run on its own.
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: renovate-release
+  cancel-in-progress: false
+
+jobs:
+  next-version:
+    if: >-
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'renovate/')
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.next.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Compute the next patch tag
+        id: next
+        run: |
+          # Stable releases only — ignore pre-release tags such as v0.0.4-pre.2.
+          LATEST=$(git tag --list \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sort -V \
+            | tail -n 1)
+          if [ -z "$LATEST" ]; then
+            TAG="v0.0.1"
+          else
+            IFS=. read -r MAJOR MINOR PATCH <<< "${LATEST#v}"
+            TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+          fi
+          echo "Latest stable tag: ${LATEST:-<none>} -> $TAG"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: next-version
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.next-version.outputs.tag }}
+      prerelease: false
+      ref: main
+      generate_notes: true
